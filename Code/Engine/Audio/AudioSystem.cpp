@@ -1,8 +1,3 @@
-#include "Engine/Audio/AudioSystem.hpp"
-#include "Engine/Core/EngineCommon.hpp"
-#include "Engine/Core/ErrorWarningAssert.hpp"
-#include "Engine/Core/StringUtils.hpp"
-
 //-----------------------------------------------------------------------------------------------
 // To disable audio entirely (and remove requirement for fmod.dll / fmod64.dll) for any game,
 //	#define ENGINE_DISABLE_AUDIO in your game's Code/Game/EngineBuildPreferences.hpp file.
@@ -13,8 +8,13 @@
 //
 // SD1 NOTE: THIS MEANS *EVERY* GAME MUST HAVE AN EngineBuildPreferences.hpp FILE IN ITS CODE/GAME FOLDER!!
 #include "Game/EngineBuildPreferences.hpp"
+#include "Engine/Audio/AudioSystem.hpp"
+
 #if !defined( ENGINE_DISABLE_AUDIO )
 
+#include "Engine/Core/ErrorWarningAssert.hpp"
+#include "Engine/Core/EngineCommon.hpp"
+#include "Engine/Core/StringUtils.hpp"
 
 //-----------------------------------------------------------------------------------------------
 // Link in the appropriate FMOD static library (32-bit or 64-bit)
@@ -275,3 +275,156 @@ void AudioSystem::ValidateResult( FMOD_RESULT result )
 
 
 #endif // !defined( ENGINE_DISABLE_AUDIO )
+
+/*
+#if defined(ENGINE_DISABLE_AUDIO)
+
+#include "Engine/Core/EngineCommon.hpp"
+
+AudioSystem::AudioSystem()
+	: m_fmodSystem( nullptr )
+{
+}
+
+AudioSystem::AudioSystem( AudioConfig const& config )
+	: m_fmodSystem( nullptr )
+{
+	m_config = config;
+}
+
+//-----------------------------------------------------------------------------------------------
+AudioSystem::~AudioSystem()
+{
+}
+
+
+//------------------------------------------------------------------------------------------------
+void AudioSystem::Startup()
+{
+}
+
+
+//------------------------------------------------------------------------------------------------
+void AudioSystem::Shutdown()
+{
+}
+
+
+//-----------------------------------------------------------------------------------------------
+void AudioSystem::BeginFrame()
+{
+}
+
+
+//-----------------------------------------------------------------------------------------------
+void AudioSystem::EndFrame()
+{
+}
+
+
+//-----------------------------------------------------------------------------------------------
+SoundID AudioSystem::CreateOrGetSound( const std::string& soundFilePath, bool is3D )
+{
+	UNUSED( soundFilePath );
+	UNUSED( is3D );
+	return 0;
+}
+
+
+//-----------------------------------------------------------------------------------------------
+SoundPlaybackID AudioSystem::StartSound( SoundID soundID, bool isLooped, float volume, float balance, float speed, bool isPaused )
+{
+	UNUSED( soundID );
+	UNUSED( isLooped );
+	UNUSED( volume );
+	UNUSED( balance );
+	UNUSED( speed );
+	UNUSED( isPaused );
+
+	return 0;
+}
+
+
+//-----------------------------------------------------------------------------------------------
+void AudioSystem::StopSound( SoundPlaybackID soundPlaybackID )
+{
+	UNUSED( soundPlaybackID );
+}
+
+
+//-----------------------------------------------------------------------------------------------
+// Volume is in [0,1]
+//
+void AudioSystem::SetSoundPlaybackVolume( SoundPlaybackID soundPlaybackID, float volume )
+{
+	UNUSED( soundPlaybackID );
+	UNUSED( volume );
+}
+
+
+//-----------------------------------------------------------------------------------------------
+// Balance is in [-1,1], where 0 is L/R centered
+//
+void AudioSystem::SetSoundPlaybackBalance( SoundPlaybackID soundPlaybackID, float balance )
+{
+	UNUSED( soundPlaybackID );
+	UNUSED( balance );
+}
+
+
+//-----------------------------------------------------------------------------------------------
+// Speed is frequency multiplier (1.0 == normal)
+//	A speed of 2.0 gives 2x frequency, i.e. exactly one octave higher
+//	A speed of 0.5 gives 1/2 frequency, i.e. exactly one octave lower
+//
+void AudioSystem::SetSoundPlaybackSpeed( SoundPlaybackID soundPlaybackID, float speed )
+{
+	UNUSED( soundPlaybackID );
+	UNUSED( speed );
+}
+
+void AudioSystem::SetNumListeners( int numListeners )
+{
+	UNUSED( numListeners );
+}
+
+void AudioSystem::UpdateListener( int listenerIndex, Vec3 const& listenerPosition, Vec3 const& listenerForward, Vec3 const& listenerUp )
+{
+	UNUSED( listenerIndex );
+	UNUSED( listenerPosition );
+	UNUSED( listenerForward );
+	UNUSED( listenerUp );
+}
+
+SoundPlaybackID AudioSystem::StartSoundAt( SoundID soundID, Vec3 const& soundPosition, bool isLooped, float volume, float balance, float speed, bool isPaused )
+{
+	UNUSED( soundID );
+	UNUSED( soundPosition );
+	UNUSED( isLooped );
+	UNUSED( volume );
+	UNUSED( balance );
+	UNUSED( speed );
+	UNUSED( isPaused );
+
+	return 0;
+}
+
+void AudioSystem::SetSoundPosition( SoundPlaybackID soundPlaybackID, Vec3 const& soundPosition )
+{
+	UNUSED( soundPlaybackID );
+	UNUSED( soundPosition );
+}
+
+bool AudioSystem::IsPlaying( SoundPlaybackID soundPlaybackID )
+{
+	UNUSED( soundPlaybackID );
+	return false;
+}
+
+//-----------------------------------------------------------------------------------------------
+void AudioSystem::ValidateResult( FMOD_RESULT result )
+{
+	UNUSED( result );
+}
+#endif
+*/

@@ -12,3 +12,8 @@ public:
 
 private:
 };
+
+int RollRandomIntLessThan( int maxNotInclusive );
+int RollRandomIntInRange( int minInclusive, int maxInclusive );
+float RollRandomFloatZeroToOne();
+float RollRandomFloatInRange( float minInlucisve, float maxInclusive );

@@ -100,6 +100,16 @@ EulerAngles ParseXmlAttribute( XmlElement const& element, char const* attributeN
 	return EulerAngles( (std::string)data );
 }
 
+// Quat ParseXmlAttribute( XmlElement const& element, char const* attributeName, Quat const& defaultValue )
+// {
+// 	const char* data = element.Attribute( attributeName );
+// 	if (data == nullptr)
+// 		return defaultValue;
+// 	if ((std::string)data == "")
+// 		return defaultValue;
+// 	return Quat( (std::string)data );
+// }
+
 IntVec2 ParseXmlAttribute( XmlElement const& element, char const* attributeName, IntVec2 const& defaultValue )
 {
 	const char* data = element.Attribute( attributeName );

@@ -21,18 +21,18 @@ public:
 	AABB3 const GetMoved( Vec3 const& delta ) const;
 
 	// Accessors (const methods)
-// 	bool IsPointInside( Vec2 const& point ) const;
-// 	Vec2 const GetCenter() const;
-// 	Vec2 const GetDimensions() const;
-// 	Vec2 const GetNearestPoint( Vec2 const& refernencePosition ) const;
-// 	Vec2 const GetPointAtUV( Vec3 const& uv ) const;
-// 	Vec2 const GetUVForPoint( Vec3 const& point ) const;
+// 	bool IsPointInside( Vec3 const& point ) const;
+ 	Vec3 const GetCenter() const;
+// 	Vec3 const GetDimensions() const;
+// 	Vec3 const GetNearestPoint( Vec3 const& refernencePosition ) const;
+// 	Vec3 const GetPointAtUV( Vec3 const& uv ) const;
+// 	Vec3 const GetUVForPoint( Vec3 const& point ) const;
 	//Mutator (non-const methods)
-// 	void Translate( Vec2 const& trasnlationToApply );
-// 	void SetCenter( Vec2 const& newCenter );
-// 	void SetDimensions( Vec2 const& newDimensions );
+// 	void Translate( Vec3 const& trasnlationToApply );
+// 	void SetCenter( Vec3 const& newCenter );
+// 	void SetDimensions( Vec3 const& newDimensions );
 
-	void StretchToIncludePoint( Vec2 const& point );
+//	void StretchToIncludePoint( Vec3 const& point );
 
 	static const AABB3 ZERO_TO_ONE;
 };

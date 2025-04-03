@@ -32,3 +32,25 @@ void OBB2::RotateAboutCenter( float rotationDeltaDegree )
 	float newDegree = currDegree + rotationDeltaDegree;
 	m_iBasisNormal = Vec2( CosDegrees( newDegree ), SinDegrees( newDegree ) );
 }
+
+void OBB2::RotateAboutPivot( Vec2 const& pivot, float rotationDeltaDegree )
+{
+	// Compute rotation matrix
+	float cosTheta = CosDegrees( rotationDeltaDegree );
+	float sinTheta = SinDegrees( rotationDeltaDegree );
+
+	// Rotate center around the pivot
+	Vec2 relativeCenter = m_center - pivot;
+	Vec2 rotatedCenter(
+		relativeCenter.x * cosTheta - relativeCenter.y * sinTheta,
+		relativeCenter.x * sinTheta + relativeCenter.y * cosTheta
+	);
+	m_center = rotatedCenter + pivot;
+
+	// Rotate iBasisNormal
+	Vec2 rotatedIBasis(
+		m_iBasisNormal.x * cosTheta - m_iBasisNormal.y * sinTheta,
+		m_iBasisNormal.x * sinTheta + m_iBasisNormal.y * cosTheta
+	);
+	m_iBasisNormal = rotatedIBasis;
+}

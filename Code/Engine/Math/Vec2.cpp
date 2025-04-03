@@ -193,13 +193,22 @@ void Vec2::SetFromText( std::string text )
 	if (text.find( ',' ) != std::string::npos)
 		elems = Split( text, ',' );
 	else if (text.find( ' ' ) != std::string::npos)
-		elems = Split( text, ' ' );
+		elems = Split( text, ' ', true );
 	else if (text.find( '~' ) != std::string::npos)
 		elems = Split( text, '~' );
 	else
 		return;
 	x = stof( elems[0] );
 	y = stof( elems[1] );
+}
+
+std::string Vec2::ToString() const
+{
+	std::string str = "";
+	str += std::to_string( x );
+	str += ' ';
+	str += std::to_string( y );
+	return str;
 }
 
 //-----------------------------------------------------------------------------------------------

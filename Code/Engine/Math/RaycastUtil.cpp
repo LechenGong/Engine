@@ -181,6 +181,16 @@ bool RaycastAABB2D( RaycastResult2D& result, Vec2 startPos, Vec2 fwdNormal, floa
 	}
 }
 
+bool RaycastConvex2D( RaycastResult2D& result, Vec2 startPos, Vec2 fwdNormal, float maxDist, ConvexHull2 convexHull2 )
+{
+	UNUSED( result );
+	UNUSED( startPos );
+	UNUSED( fwdNormal );
+	UNUSED( maxDist );
+	UNUSED( convexHull2 );
+	return false;
+}
+
 bool RaycastGridFirst2D( RaycastResult2D& result, Vec2 startPos, Vec2 fwdNormal, float maxDist, void const* gridSolidity, int gridLength, int gridWidth )
 {
 	std::vector<bool> solidity = *reinterpret_cast<std::vector<bool> const*>(gridSolidity);
@@ -676,7 +686,7 @@ bool RaycastSphere3D( RaycastResult3D& result, Vec3 startPos, Vec3 fwdNormal, fl
 	result.m_impactDist = impactDist;
 	result.m_impactPos = startPos + fwdNormal * result.m_impactDist;
 	result.m_impactNormal = (result.m_impactPos - sphereCenter).GetNormalized();
-	return false;
+	return true;
 }
 
 bool RaycastOBB3D( RaycastResult3D& result, Vec3 startPos, Vec3 fwdNormal, float maxDist, OBB3 obb )
@@ -688,4 +698,25 @@ bool RaycastOBB3D( RaycastResult3D& result, Vec3 startPos, Vec3 fwdNormal, float
 	result.m_impactPos = obb.LocalPosToWorldPos( result.m_impactPos );
 	result.m_impactNormal = obb.LocalVecToWorldVec( result.m_impactNormal );
 	return result.m_didImpact;
+}
+
+bool RaycastCapsule3D( RaycastResult3D& result, Vec3 startPos, Vec3 fwdNormal, float maxDist, Vec3 const& boneStart, Vec3 const& boneEnd, float capsuleRadius )
+{
+	Vec3 direction = boneEnd - boneStart;
+	Vec3 closest = GetNearestPointOnLineSegment3D( startPos, boneStart, boneEnd );
+	Vec3 toClosest = closest - startPos;
+	if (toClosest.GetLengthSquared() <= capsuleRadius * capsuleRadius)
+	{
+		result.m_didImpact = true;
+		result.m_impactDist = toClosest.GetLength();
+		result.m_impactPos = closest;
+		result.m_impactNormal = toClosest.GetNormalized();
+		return true;
+	}
+	if (RaycastSphere3D( result, startPos, fwdNormal, maxDist, boneStart, capsuleRadius ) ||
+		RaycastSphere3D( result, startPos, fwdNormal, maxDist, boneEnd, capsuleRadius )) 
+	{
+		return true;
+	}
+	return false;
 }

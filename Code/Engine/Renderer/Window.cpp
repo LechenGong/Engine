@@ -1,5 +1,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <commdlg.h>
+#include <filesystem>
 
 #include "Engine/Core/ErrorWarningAssert.hpp"
 #include "Engine//Input/InputSystem.hpp"
@@ -75,6 +77,48 @@ Window* Window::GetMainWindowInstance()
 	return Window::s_theWindow;
 }
 
+std::string Window::GetFileNameFromBrowser( const char* directory )
+{
+	char filename[MAX_PATH];
+	filename[0] = '\0';
+
+	OPENFILENAMEA data = {};
+	data.lStructSize = sizeof( data );
+	data.lpstrFile = filename;
+	data.nMaxFile = sizeof( filename );
+	data.lpstrFilter = "All\0*.*\0";
+	data.nFilterIndex = 1;
+	data.lpstrInitialDir = directory;
+	data.hwndOwner = (HWND)GetHwnd();
+	data.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+
+	while (ShowCursor( true ) < 0)
+	{
+
+	}
+	std::filesystem::path defaultPath = std::filesystem::current_path();
+
+	GetOpenFileNameA( &data );
+
+	std::filesystem::current_path( defaultPath );
+
+	DWORD error = GetLastError();
+
+	if (error != 0)
+	{
+		LPSTR messageBuffer = nullptr;
+		DWORD flags = FORMAT_MESSAGE_ALLOCATE_BUFFER |
+			FORMAT_MESSAGE_FROM_SYSTEM |
+			FORMAT_MESSAGE_IGNORE_INSERTS;
+		FormatMessageA( flags, NULL, error, MAKELANGID( LANG_NEUTRAL, SUBLANG_DEFAULT ), (LPSTR)&messageBuffer, 0, NULL );
+		ERROR_RECOVERABLE( messageBuffer );
+		LocalFree( messageBuffer );
+		return "";
+	}
+
+	return data.lpstrFile;
+}
+
 void Window::CreateOSWindow()
 {
 	// Define a window style/class
@@ -90,7 +134,8 @@ void Window::CreateOSWindow()
 	RegisterClassEx( &windowClassDescription );
 
 	// #SD1ToDo: Add support for fullscreen mode (requires different window style flags than windowed mode)
-	const DWORD windowStyleFlags = WS_CAPTION | WS_BORDER | WS_THICKFRAME | WS_SYSMENU | WS_OVERLAPPED;
+	//const DWORD windowStyleFlags = WS_CAPTION | WS_BORDER | WS_THICKFRAME | WS_SYSMENU | WS_OVERLAPPED;
+	DWORD windowStyleFlags;
 	const DWORD windowStyleExFlags = WS_EX_APPWINDOW;
 
 	// Get desktop rect, dimensions, aspect
@@ -102,32 +147,58 @@ void Window::CreateOSWindow()
 	float desktopHeight = (float)(desktopRect.bottom - desktopRect.top);
 	float desktopAspect = desktopWidth / desktopHeight;
 
-	// Calculate maximum client size (as some % of desktop size)
-	constexpr float maxClientFractionOfDesktop = 0.90f;
-	float clientWidth = desktopWidth * maxClientFractionOfDesktop;
-	float clientHeight = desktopHeight * maxClientFractionOfDesktop;
-	if (m_config.m_clientAspect > desktopAspect)
+	if (m_config.m_isFullScreen)
 	{
-		// Client window has a wider aspect than desktop; shrink client height to match its width
-		clientHeight = clientWidth / m_config.m_clientAspect;
+		windowStyleFlags = WS_POPUP;
+		m_clientDimensions.x = static_cast<int>(desktopWidth);
+		m_clientDimensions.y = static_cast<int>(desktopHeight);
+		m_config.m_clientAspect = desktopAspect;
 	}
 	else
 	{
-		// Client window has a taller aspect than desktop; shrink client width to match its height
-		clientWidth = clientHeight * m_config.m_clientAspect;
+		windowStyleFlags = WS_CAPTION | WS_BORDER | WS_THICKFRAME | WS_SYSMENU | WS_OVERLAPPED;
+		// Calculate maximum client size (as some % of desktop size)
+
+		if (m_config.m_size != IntVec2{ -1, -1 })
+		{
+			m_clientDimensions.x = m_config.m_size.x;
+			m_clientDimensions.y = m_config.m_size.y;
+			m_config.m_clientAspect = (float)m_clientDimensions.x / (float)m_clientDimensions.y;
+		}
+		else
+		{
+			constexpr float maxClientFractionOfDesktop = 0.90f;
+			float clientWidth = desktopWidth * maxClientFractionOfDesktop;
+			float clientHeight = desktopHeight * maxClientFractionOfDesktop;
+			if (m_config.m_clientAspect > desktopAspect)
+			{
+				// Client window has a wider aspect than desktop; shrink client height to match its width
+				clientHeight = clientWidth / m_config.m_clientAspect;
+			}
+			else
+			{
+				// Client window has a taller aspect than desktop; shrink client width to match its height
+				clientWidth = clientHeight * m_config.m_clientAspect;
+			}
+
+			m_clientDimensions.x = static_cast<int>(clientWidth);
+			m_clientDimensions.y = static_cast<int>(clientHeight);
+		}
 	}
 
-	m_clientDimensions.x = static_cast<int>(clientWidth);
-	m_clientDimensions.y = static_cast<int>(clientHeight);
-
 	// Calculate client rect bounds by centering the client area
-	float clientMarginX = 0.5f * (desktopWidth - clientWidth);
-	float clientMarginY = 0.5f * (desktopHeight - clientHeight);
+	float clientMarginX = 0.5f * (desktopWidth - float( m_clientDimensions.x ));
+	float clientMarginY = 0.5f * (desktopHeight - float( m_clientDimensions.y ));
+	if (!m_config.m_isFullScreen && m_config.m_pos != IntVec2{ -1, -1 })
+	{
+		clientMarginX = (float)m_config.m_pos.x;
+		clientMarginY = (float)m_config.m_pos.y;
+	}
 	RECT clientRect;
 	clientRect.left = (int)clientMarginX;
-	clientRect.right = clientRect.left + (int)clientWidth;
+	clientRect.right = clientRect.left + m_clientDimensions.x;
 	clientRect.top = (int)clientMarginY;
-	clientRect.bottom = clientRect.top + (int)clientHeight;
+	clientRect.bottom = clientRect.top + m_clientDimensions.y;
 
 	// Calculate the outer dimensions of the physical window, including frame et. al.
 	RECT windowRect = clientRect;
@@ -176,7 +247,9 @@ void Window::RunMessagePump()
 		DispatchMessage( &queuedMessage ); // This tells Windows to call our "WindowsMessageHandlingProcedure" (a.k.a. "WinProc") function
 	}
 }
-#include "Engine/Core/DebugRenderSystem.hpp"
+
+extern LRESULT ImGui_ImplWin32_WndProcHandler( HWND windowHandle, UINT wmMessageCode, WPARAM wParam, LPARAM lParam );
+
 LRESULT CALLBACK WindowsMessageHandlingProcedure( HWND windowHandle, UINT wmMessageCode, WPARAM wParam, LPARAM lParam )
 {
 	Window* window = Window::GetMainWindowInstance();
@@ -184,6 +257,9 @@ LRESULT CALLBACK WindowsMessageHandlingProcedure( HWND windowHandle, UINT wmMess
 
 	InputSystem* input = window->GetConfig().m_inputSystem;
 	GUARANTEE_OR_DIE( input != nullptr, "Window's InputSystem was null!" );
+
+	if (ImGui_ImplWin32_WndProcHandler( windowHandle, wmMessageCode, wParam, lParam ))
+		return true;
 
 	switch (wmMessageCode)
 	{
@@ -193,7 +269,7 @@ LRESULT CALLBACK WindowsMessageHandlingProcedure( HWND windowHandle, UINT wmMess
 		//g_theApp->SetShuttingDown( true );
 
 		if (g_eventSystem != nullptr)
-			g_eventSystem->FireEvent( "shutdown" );
+			g_eventSystem->FireEventEX( "shutdown" );
 		else
 			ERROR_RECOVERABLE( "App closing not yet supported, terminate from task manager" );
 		return 0;
@@ -203,7 +279,8 @@ LRESULT CALLBACK WindowsMessageHandlingProcedure( HWND windowHandle, UINT wmMess
 	case WM_KEYDOWN:
 	{
 		//input->HandleKeyPressed( (unsigned int)wParam );
-		g_eventSystem->FireEvent( "funcinputdown " + std::to_string( (unsigned int)wParam ) );
+		//g_eventSystem->FireEvent( "funcinputdown " + std::to_string( (unsigned int)wParam ) );
+		g_eventSystem->FireEventEX( "funcinputdown", (unsigned int)wParam );
 		break;
 	}
 
@@ -211,52 +288,62 @@ LRESULT CALLBACK WindowsMessageHandlingProcedure( HWND windowHandle, UINT wmMess
 	case WM_KEYUP:
 	{
 		//input->HandleKeyReleased( (unsigned int)wParam );
-		g_eventSystem->FireEvent( "funcinputup " + std::to_string( (unsigned int)wParam ) );
+		//g_eventSystem->FireEvent( "funcinputup " + std::to_string( (unsigned int)wParam ) );
+		g_eventSystem->FireEventEX( "funcinputup", (unsigned int)wParam );
 		break;
 	}
 	case WM_CHAR:
 	{
-		g_eventSystem->FireEvent( "litinput " + std::to_string( (unsigned int)wParam ) );
+		//g_eventSystem->FireEvent( "litinput " + std::to_string( (unsigned int)wParam ) );
+		g_eventSystem->FireEventEX( "litinput", (unsigned int)wParam );
 		break;
 	}
 	case WM_LBUTTONDOWN:
 	{
-		g_eventSystem->FireEvent( "funcinputdown " + std::to_string( (unsigned int)1 ) );
+		//g_eventSystem->FireEvent( "funcinputdown " + std::to_string( (unsigned int)1 ) );
+		g_eventSystem->FireEventEX( "funcinputdown", (unsigned int)1 );
 		break;
 	}
 	case WM_RBUTTONDOWN:
 	{
-		g_eventSystem->FireEvent( "funcinputdown " + std::to_string( (unsigned int)2 ) );
+		//g_eventSystem->FireEvent( "funcinputdown " + std::to_string( (unsigned int)2 ) );
+		g_eventSystem->FireEventEX( "funcinputdown", (unsigned int)2 );
 		break;
 	}
 	case WM_MBUTTONDOWN:
 	{
-		g_eventSystem->FireEvent( "funcinputdown " + std::to_string( (unsigned int)3 ) );
+		//g_eventSystem->FireEvent( "funcinputdown " + std::to_string( (unsigned int)3 ) );
+		g_eventSystem->FireEventEX( "funcinputdown", (unsigned int)3 );
 		break;
 	}
 	case WM_LBUTTONUP:
 	{
-		g_eventSystem->FireEvent( "funcinputup " + std::to_string( (unsigned int)1 ) );
+		//g_eventSystem->FireEvent( "funcinputup " + std::to_string( (unsigned int)1 ) );
+		g_eventSystem->FireEventEX( "funcinputup", (unsigned int)1 );
 		break;
 	}
 	case WM_RBUTTONUP:
 	{
-		g_eventSystem->FireEvent( "funcinputup " + std::to_string( (unsigned int)2 ) );
+		//g_eventSystem->FireEvent( "funcinputup " + std::to_string( (unsigned int)2 ) );
+		g_eventSystem->FireEventEX( "funcinputup", (unsigned int)2 );
 		break;
 	}
 	case WM_MBUTTONUP:
 	{
-		g_eventSystem->FireEvent( "funcinputup " + std::to_string( (unsigned int)3 ) );
+		//g_eventSystem->FireEvent( "funcinputup " + std::to_string( (unsigned int)3 ) );
+		g_eventSystem->FireEventEX( "funcinputup", (unsigned int)3 );
 		break;
 	}
 	case WM_MOUSEWHEEL:
 	{
-		g_eventSystem->FireEvent( "funcinputdown " + std::to_string( (GET_WHEEL_DELTA_WPARAM( wParam ) > 0) ? 4 : 5 ) );
+		//g_eventSystem->FireEvent( "funcinputdown " + std::to_string( (GET_WHEEL_DELTA_WPARAM( wParam ) > 0) ? 4 : 5 ) );
+		g_eventSystem->FireEventEX( "funcinputdown", (GET_WHEEL_DELTA_WPARAM( wParam ) > 0) ? 4 : 5 );
 		break;
 	}
 	case WM_MOUSEHWHEEL:
 	{
-		g_eventSystem->FireEvent( "funcinputdown " + std::to_string( (GET_WHEEL_DELTA_WPARAM( wParam ) > 0) ? 6 : 7 ) );
+		//g_eventSystem->FireEvent( "funcinputdown " + std::to_string( (GET_WHEEL_DELTA_WPARAM( wParam ) > 0) ? 6 : 7 ) );
+		g_eventSystem->FireEventEX( "funcinputdown", (GET_WHEEL_DELTA_WPARAM( wParam ) > 0) ? 6 : 7 );
 		break;
 	}
 	}

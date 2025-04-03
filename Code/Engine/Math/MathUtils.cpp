@@ -70,9 +70,19 @@ float CosDegrees( float degrees )
 	return cosf( ConvertDegreesToRadians( degrees ) );
 }
 
+float ACosDegrees( float value )
+{
+	return ConvertRadiansToDegrees( acosf( value ) );
+}
+
 float SinDegrees( float degrees )
 {
 	return sinf( ConvertDegreesToRadians( degrees ) );
+}
+
+float ASinDegrees( float value )
+{
+	return ConvertRadiansToDegrees( asinf( value ) );
 }
 
 float Atan2Degrees( float y, float x )
@@ -161,6 +171,92 @@ float GetProjectedLength3D( Vec3 const& vectorToProject, Vec3 const& vecToProjec
 Vec3 const GetProjectedOnto3D( Vec3 const& vectorToProject, Vec3 const& vecToProjectOnto )
 {
 	return vecToProjectOnto.GetNormalized() * GetProjectedLength3D( vectorToProject, vecToProjectOnto );
+}
+
+float GetLineSegmentsDistanceSquared3D( Vec3 const& startA, Vec3 const& endA, Vec3 const& startB, Vec3 const& endB )
+{
+	Vec3 directionA = endA - startA; // Direction vector of segment 1
+	Vec3 directionB = endB - startB; // Direction vector of segment 2
+	Vec3 AtoB = startA - startB;
+
+	float squaredLengthA = DotProduct3D( directionA, directionA ); // Squared length of segment 1
+	float squaredLengthB = DotProduct3D( directionB, directionB ); // Squared length of segment 2
+	float f = DotProduct3D( directionB, AtoB );
+
+	float s = 0.0f, t = 0.0f;
+	float c = DotProduct3D( directionA, AtoB );
+	float b = DotProduct3D( directionA, directionB );
+	float denom = squaredLengthA * squaredLengthB - b * b; // Always non-negative
+
+	// If segments are not parallel, compute closest points
+	if (denom != 0.0f) 
+	{
+		s = Clamp( (b * f - c * squaredLengthB) / denom, 0.0f, 1.0f );
+	}
+
+	// Compute t to minimize distance
+	t = (b * s + f) / squaredLengthB;
+
+	// Clamp t to range [0,1]
+	if (t < 0.0f) 
+	{
+		t = 0.0f;
+		s = Clamp( -c / squaredLengthA, 0.0f, 1.0f );
+	}
+	else if (t > 1.0f) 
+	{
+		t = 1.0f;
+		s = Clamp( (b - c) / squaredLengthA, 0.0f, 1.0f );
+	}
+
+	Vec3 closestPointOnA = startA + directionA * s; // Closest point on segment 1
+	Vec3 closestPointOnB = startB + directionB * t; // Closest point on segment 2
+	Vec3 diff = closestPointOnA - closestPointOnB;
+
+	return diff.GetLengthSquared();
+}
+
+float GetLineSegmentsDistanceSquared3D( Vec3 const& startA, Vec3 const& endA, Vec3 const& startB, Vec3 const& endB, Vec3& closestPointOnA, Vec3& closestPointOnB )
+{
+	Vec3 directionA = endA - startA; // Direction vector of segment 1
+	Vec3 directionB = endB - startB; // Direction vector of segment 2
+	Vec3 AtoB = startA - startB;
+
+	float squaredLengthA = DotProduct3D( directionA, directionA ); // Squared length of segment 1
+	float squaredLengthB = DotProduct3D( directionB, directionB ); // Squared length of segment 2
+	float f = DotProduct3D( directionB, AtoB );
+
+	float s = 0.0f, t = 0.0f;
+	float c = DotProduct3D( directionA, AtoB );
+	float b = DotProduct3D( directionA, directionB );
+	float denom = squaredLengthA * squaredLengthB - b * b; // Always non-negative
+
+	// If segments are not parallel, compute closest points
+	if (denom != 0.0f)
+	{
+		s = Clamp( (b * f - c * squaredLengthB) / denom, 0.0f, 1.0f );
+	}
+
+	// Compute t to minimize distance
+	t = (b * s + f) / squaredLengthB;
+
+	// Clamp t to range [0,1]
+	if (t < 0.0f)
+	{
+		t = 0.0f;
+		s = Clamp( -c / squaredLengthA, 0.0f, 1.0f );
+	}
+	else if (t > 1.0f)
+	{
+		t = 1.0f;
+		s = Clamp( (b - c) / squaredLengthA, 0.0f, 1.0f );
+	}
+
+	closestPointOnA = startA + directionA * s; // Closest point on segment 1
+	closestPointOnB = startB + directionB * t; // Closest point on segment 2
+	Vec3 diff = closestPointOnA - closestPointOnB;
+
+	return diff.GetLengthSquared();
 }
 
 bool IsPointInsideDisc2D( Vec2 const& point, Vec2 const& discCenter, float discRadius )
@@ -265,6 +361,49 @@ bool IsPointInsideAABB3D( Vec3 const& point, AABB3 const& box )
 	return true;
 }
 
+bool IsPointInsideCapsule3D( Vec3 const& point, Vec3 const& boneStart, Vec3 const& boneEnd, float radius )
+{
+	Vec3 boneVector = boneEnd - boneStart;
+
+	Vec3 startToPointVector = point - boneStart;
+	if (DotProduct3D( boneVector, startToPointVector ) <= 0)
+		return (startToPointVector.GetLengthSquared() >= radius * radius) ? false : true;
+
+	Vec3 endToPointVector = point - boneEnd;
+	if (DotProduct3D( boneVector, endToPointVector ) >= 0)
+		return (endToPointVector.GetLengthSquared() >= radius * radius) ? false : true;
+
+	Vec3 boneVectorNormal = boneVector.GetNormalized();
+	Vec3 projectionOnBone = DotProduct3D( startToPointVector, boneVectorNormal ) * boneVectorNormal;
+	Vec3 distToBone = startToPointVector - projectionOnBone;
+	
+	return (distToBone.GetLengthSquared() <= radius * radius);
+}
+
+bool IsPointInsideHexigon3D( Vec3 const& point, Vec3 const& center, float radius )
+{
+	float dx = point.x - center.x;
+	float dy = point.y - center.y;
+
+	float dist = std::sqrt( dx * dx + dy * dy );
+	float angle = std::atan2( dy, dx );
+
+	if (dist > radius) 
+		return false;
+
+	if (angle < 0) 
+	{
+		angle += 2.0f * static_cast<float>(PI);
+	}
+	
+	float sectorAngle = static_cast<float>(PI) / 3.0f;
+	float normalizedAngle = std::fmod( angle, sectorAngle );
+
+	float maxDist = radius * std::cos( normalizedAngle );
+
+	return dist <= maxDist;
+}
+
 bool DoDiscsOverlap2D( Vec2 const& centerA, float const& radiusA, Vec2 const& centerB, float const& radiusB )
 {
 	return GetDistanceSquared2D( centerA, centerB ) < ((radiusA + radiusB) * (radiusA + radiusB));
@@ -322,25 +461,42 @@ bool DoSpheresOverlap3D( Vec3 const& centerA, float const& radiusA, Vec3 const& 
 	return GetDistanceSquared3D( centerA, centerB ) < ((radiusA + radiusB) * (radiusA + radiusB));
 }
 
+bool DoSpheresOverlap3D( Vec3 const& centerA, float const& radiusA, Vec3 const& centerB, float const& radiusB, Vec3& out_mtv_XY )
+{
+	Vec3 direction = centerB - centerA;
+
+	float distanceSquaredXY = (direction.x * direction.x) + (direction.y * direction.y);
+	float radiusSum = radiusA + radiusB;
+
+	if (distanceSquaredXY < (radiusSum * radiusSum))
+	{
+		float distanceXY = std::sqrt( distanceSquaredXY );
+
+		if (distanceXY == 0.0f)
+		{
+			out_mtv_XY = Vec3( radiusSum, 0.0f, 0.0f );
+		}
+		else
+		{
+			float overlap = radiusSum - distanceXY;
+
+			Vec3 directionXY( direction.x, direction.y, 0.f );
+
+			out_mtv_XY = directionXY * overlap;
+		}
+
+		return true;
+	}
+
+	out_mtv_XY = Vec3( 0.0f, 0.0f, 0.0f );
+	return false;
+}
+
 bool DoAABBsOverlap3D( AABB3 const& aabbA, AABB3 const& aabbB )
 {
-	Vec2 AX = Vec2( aabbA.m_mins.x, aabbA.m_maxs.x );
-	Vec2 AY = Vec2( aabbA.m_mins.y, aabbA.m_maxs.y );
-	Vec2 AZ = Vec2( aabbA.m_mins.z, aabbA.m_maxs.z );
-	Vec2 BX = Vec2( aabbB.m_mins.x, aabbB.m_maxs.x );
-	Vec2 BY = Vec2( aabbB.m_mins.y, aabbB.m_maxs.y );
-	Vec2 BZ = Vec2( aabbB.m_mins.z, aabbB.m_maxs.z );
-
-	float a = MAX( AX.x, BX.x );
-	float b = MIN( AX.y, BX.y );
-	bool xOverlap = (a < b);
-	a = MAX( AY.x, BY.x );
-	b = MIN( AY.y, BY.y );
-	bool yOverlap = (a < b);
-	a = MAX( AZ.x, BZ.x );
-	b = MIN( AZ.y, BZ.y );
-	bool ZOverlap = (a < b);
-	return xOverlap && yOverlap && ZOverlap;
+	return (aabbA.m_mins.x <= aabbB.m_maxs.x && aabbA.m_maxs.x >= aabbB.m_mins.x) &&
+		(aabbA.m_mins.y <= aabbB.m_maxs.y && aabbA.m_maxs.y >= aabbB.m_mins.y) &&
+		(aabbA.m_mins.z <= aabbB.m_maxs.z && aabbA.m_maxs.z >= aabbB.m_mins.z);
 }
 
 bool DoZCylindersOverlap3D( Vec3 const& cylinderAStart, float cylinderAHeight, float cylinderARadius, Vec3 const& cylinderBStart, float cylinderBHeight, float cylinderBRadius )
@@ -457,6 +613,416 @@ bool DoPlaneOverlapOBB3D( Plane const& plane, OBB3 const& obb )
 	return false;
 }
 
+bool DoOBBsOverlap3D( OBB3 const& obbA, OBB3 const& obbB )
+{
+	Mat44 rotationMatrix;
+	Mat44 absRotationMatrix;
+
+	rotationMatrix.SetIJK3D(
+		Vec3(
+			DotProduct3D( obbA.m_iBasisNormal, obbB.m_iBasisNormal ),
+			DotProduct3D( obbA.m_jBasisNormal, obbB.m_iBasisNormal ),
+			DotProduct3D( obbA.m_kBasisNormal, obbB.m_iBasisNormal )
+		),
+		Vec3(
+			DotProduct3D( obbA.m_iBasisNormal, obbB.m_jBasisNormal ),
+			DotProduct3D( obbA.m_jBasisNormal, obbB.m_jBasisNormal ),
+			DotProduct3D( obbA.m_kBasisNormal, obbB.m_jBasisNormal )
+		),
+		Vec3(
+			DotProduct3D( obbA.m_iBasisNormal, obbB.m_kBasisNormal ),
+			DotProduct3D( obbA.m_jBasisNormal, obbB.m_kBasisNormal ),
+			DotProduct3D( obbA.m_kBasisNormal, obbB.m_kBasisNormal )
+		)
+	);
+
+	for (int i = 0; i < 3; i++)
+	{
+		for (int j = 0; j < 3; j++)
+		{
+			absRotationMatrix.SetElement( i, j, abs( rotationMatrix.GetElement( i, j ) ) );
+			if (absRotationMatrix.GetElement( i, j ) < 0.0001f)
+			{
+				absRotationMatrix.SetElement( i, j, 0.f );
+			}
+		}
+	}
+
+	Vec3 translation = obbB.m_center - obbA.m_center;
+
+	Vec3 translationInAFrame = Vec3(
+		DotProduct3D( translation, obbA.m_iBasisNormal ),
+		DotProduct3D( translation, obbA.m_jBasisNormal ),
+		DotProduct3D( translation, obbA.m_kBasisNormal )
+	);
+
+	// Test OBBA local axes
+	for (int i = 0; i < 3; i++)
+	{
+		float halfExtentA = obbA.m_halfDimensions[i];
+		float halfExtentB = obbB.m_halfDimensions[0] * absRotationMatrix.GetElement( i, 0 ) +
+			obbB.m_halfDimensions[1] * absRotationMatrix.GetElement( i, 1 ) +
+			obbB.m_halfDimensions[2] * absRotationMatrix.GetElement( i, 2 );
+
+		if (abs( translationInAFrame[i] ) > halfExtentA + halfExtentB)
+			return false;
+	}
+
+	// Test OBBB local axes
+	for (int i = 0; i < 3; i++)
+	{
+		float halfExtentA = obbA.m_halfDimensions[0] * absRotationMatrix.GetElement( 0, i ) +
+			obbA.m_halfDimensions[1] * absRotationMatrix.GetElement( 1, i ) +
+			obbA.m_halfDimensions[2] * absRotationMatrix.GetElement( 2, i );
+		float halfExtentB = obbB.m_halfDimensions[i];
+		float projectedTranslation = translationInAFrame[0] * rotationMatrix.GetElement( 0, i ) +
+			translationInAFrame[1] * rotationMatrix.GetElement( 1, i ) +
+			translationInAFrame[2] * rotationMatrix.GetElement( 2, i );
+
+		if (abs( projectedTranslation ) > halfExtentA + halfExtentB)
+			return false;
+	}
+
+	// Test cross products of axes for separation (using SAT)
+	// Break if no overlap on axis (overlapping requires projections also overlap on all axes)
+	float halfExtentA, halfExtentB;
+
+	// A0 x B0
+	halfExtentA = obbA.m_halfDimensions[1] * absRotationMatrix.GetElement( 2, 0 ) + obbA.m_halfDimensions[2] * absRotationMatrix.GetElement( 1, 0 );
+	halfExtentB = obbB.m_halfDimensions[1] * absRotationMatrix.GetElement( 0, 2 ) + obbB.m_halfDimensions[2] * absRotationMatrix.GetElement( 0, 1 );
+	if (abs( translationInAFrame[2] * rotationMatrix.GetElement( 1, 0 ) - translationInAFrame[1] * rotationMatrix.GetElement( 2, 0 ) ) > halfExtentA + halfExtentB) return false;
+
+	// A0 x B1
+	halfExtentA = obbA.m_halfDimensions[1] * absRotationMatrix.GetElement( 2, 1 ) + obbA.m_halfDimensions[2] * absRotationMatrix.GetElement( 1, 1 );
+	halfExtentB = obbB.m_halfDimensions[0] * absRotationMatrix.GetElement( 0, 2 ) + obbB.m_halfDimensions[2] * absRotationMatrix.GetElement( 0, 0 );
+	if (abs( translationInAFrame[2] * rotationMatrix.GetElement( 1, 1 ) - translationInAFrame[1] * rotationMatrix.GetElement( 2, 1 ) ) > halfExtentA + halfExtentB) return false;
+
+	// A0 x B2
+	halfExtentA = obbA.m_halfDimensions[1] * absRotationMatrix.GetElement( 2, 2 ) + obbA.m_halfDimensions[2] * absRotationMatrix.GetElement( 1, 2 );
+	halfExtentB = obbB.m_halfDimensions[0] * absRotationMatrix.GetElement( 0, 1 ) + obbB.m_halfDimensions[1] * absRotationMatrix.GetElement( 0, 0 );
+	if (abs( translationInAFrame[2] * rotationMatrix.GetElement( 1, 2 ) - translationInAFrame[1] * rotationMatrix.GetElement( 2, 2 ) ) > halfExtentA + halfExtentB) return false;
+
+	// A1 x B0
+	halfExtentA = obbA.m_halfDimensions[0] * absRotationMatrix.GetElement( 2, 0 ) + obbA.m_halfDimensions[2] * absRotationMatrix.GetElement( 0, 0 );
+	halfExtentB = obbB.m_halfDimensions[1] * absRotationMatrix.GetElement( 2, 2 ) + obbB.m_halfDimensions[2] * absRotationMatrix.GetElement( 2, 1 );
+	//if (abs( translationInAFrame[0] * rotationMatrix.GetElement( 2, 0 ) - translationInAFrame[2] * rotationMatrix.GetElement( 0, 0 ) ) > halfExtentA + halfExtentB) return false;
+
+	// A1 x B1
+	halfExtentA = obbA.m_halfDimensions[0] * absRotationMatrix.GetElement( 2, 1 ) + obbA.m_halfDimensions[2] * absRotationMatrix.GetElement( 0, 1 );
+	halfExtentB = obbB.m_halfDimensions[0] * absRotationMatrix.GetElement( 2, 2 ) + obbB.m_halfDimensions[2] * absRotationMatrix.GetElement( 2, 0 );
+	if (abs( translationInAFrame[0] * rotationMatrix.GetElement( 2, 1 ) - translationInAFrame[2] * rotationMatrix.GetElement( 0, 1 ) ) > halfExtentA + halfExtentB) return false;
+
+	// A1 x B2
+	halfExtentA = obbA.m_halfDimensions[0] * absRotationMatrix.GetElement( 2, 2 ) + obbA.m_halfDimensions[2] * absRotationMatrix.GetElement( 0, 2 );
+	halfExtentB = obbB.m_halfDimensions[0] * absRotationMatrix.GetElement( 2, 1 ) + obbB.m_halfDimensions[1] * absRotationMatrix.GetElement( 2, 0 );
+	if (abs( translationInAFrame[0] * rotationMatrix.GetElement( 2, 2 ) - translationInAFrame[2] * rotationMatrix.GetElement( 0, 2 ) ) > halfExtentA + halfExtentB) return false;
+
+	// A2 x B0
+	halfExtentA = obbA.m_halfDimensions[0] * absRotationMatrix.GetElement( 1, 0 ) + obbA.m_halfDimensions[1] * absRotationMatrix.GetElement( 0, 0 );
+	halfExtentB = obbB.m_halfDimensions[1] * absRotationMatrix.GetElement( 2, 2 ) + obbB.m_halfDimensions[2] * absRotationMatrix.GetElement( 2, 1 );
+	if (abs( translationInAFrame[1] * rotationMatrix.GetElement( 0, 0 ) - translationInAFrame[0] * rotationMatrix.GetElement( 1, 0 ) ) > halfExtentA + halfExtentB) return false;
+
+	// A2 x B1
+	halfExtentA = obbA.m_halfDimensions[0] * absRotationMatrix.GetElement( 1, 1 ) + obbA.m_halfDimensions[1] * absRotationMatrix.GetElement( 0, 1 );
+	halfExtentB = obbB.m_halfDimensions[0] * absRotationMatrix.GetElement( 2, 2 ) + obbB.m_halfDimensions[1] * absRotationMatrix.GetElement( 2, 0 );
+	if (abs( translationInAFrame[1] * rotationMatrix.GetElement( 0, 1 ) - translationInAFrame[0] * rotationMatrix.GetElement( 1, 1 ) ) > halfExtentA + halfExtentB) return false;
+
+	// A2 x B2
+	halfExtentA = obbA.m_halfDimensions[0] * absRotationMatrix.GetElement( 1, 2 ) + obbA.m_halfDimensions[1] * absRotationMatrix.GetElement( 0, 2 );
+	halfExtentB = obbB.m_halfDimensions[0] * absRotationMatrix.GetElement( 2, 1 ) + obbB.m_halfDimensions[1] * absRotationMatrix.GetElement( 2, 0 );
+	if (abs( translationInAFrame[1] * rotationMatrix.GetElement( 0, 2 ) - translationInAFrame[0] * rotationMatrix.GetElement( 1, 2 ) ) > halfExtentA + halfExtentB) return false;
+
+	return true;
+}
+
+bool DoOBBsOverlap3D( OBB3 const& obbA, OBB3 const& obbB, Vec3& out_mtv )
+{
+	Mat44 rotationMatrix;
+	Mat44 absRotationMatrix;
+
+	rotationMatrix.SetIJK3D(
+		Vec3(
+			DotProduct3D( obbA.m_iBasisNormal, obbB.m_iBasisNormal ),
+			DotProduct3D( obbA.m_jBasisNormal, obbB.m_iBasisNormal ),
+			DotProduct3D( obbA.m_kBasisNormal, obbB.m_iBasisNormal )
+		),
+		Vec3(
+			DotProduct3D( obbA.m_iBasisNormal, obbB.m_jBasisNormal ),
+			DotProduct3D( obbA.m_jBasisNormal, obbB.m_jBasisNormal ),
+			DotProduct3D( obbA.m_kBasisNormal, obbB.m_jBasisNormal )
+		),
+		Vec3(
+			DotProduct3D( obbA.m_iBasisNormal, obbB.m_kBasisNormal ),
+			DotProduct3D( obbA.m_jBasisNormal, obbB.m_kBasisNormal ),
+			DotProduct3D( obbA.m_kBasisNormal, obbB.m_kBasisNormal )
+		)
+	);
+
+	for (int i = 0; i < 3; i++)
+	{
+		for (int j = 0; j < 3; j++)
+		{
+			absRotationMatrix.SetElement( i, j, abs( rotationMatrix.GetElement( i, j ) ) );
+			if (absRotationMatrix.GetElement( i, j ) < 0.0001f)
+			{
+				absRotationMatrix.SetElement( i, j, 0.f );
+			}
+		}
+	}
+
+	Vec3 translation = obbB.m_center - obbA.m_center;
+
+	Vec3 translationInAFrame = Vec3(
+		DotProduct3D( translation, obbA.m_iBasisNormal ),
+		DotProduct3D( translation, obbA.m_jBasisNormal ),
+		DotProduct3D( translation, obbA.m_kBasisNormal )
+	);
+
+	float minOverlap = 999999.f;
+	Vec3 minTranslationAxis;
+
+	// Test OBBA local axes
+	for (int i = 0; i < 3; i++)
+	{
+		float halfExtentA = obbA.m_halfDimensions[i];
+		float halfExtentB = obbB.m_halfDimensions[0] * absRotationMatrix.GetElement( i, 0 ) +
+			obbB.m_halfDimensions[1] * absRotationMatrix.GetElement( i, 1 ) +
+			obbB.m_halfDimensions[2] * absRotationMatrix.GetElement( i, 2 );
+
+		float overlap = halfExtentA + halfExtentB - abs( translationInAFrame[i] );
+
+		if (overlap < 0.f)
+			return false;
+
+		if (overlap < minOverlap)
+		{
+			minOverlap = overlap;
+			Vec3 thisAxis;
+			switch (i)
+			{
+			case 0: thisAxis = obbA.m_iBasisNormal; break;
+			case 1: thisAxis = obbA.m_jBasisNormal; break;
+			case 2: thisAxis = obbA.m_kBasisNormal; break;
+			default: break;
+			}
+			minTranslationAxis = thisAxis * (translationInAFrame[i] > 0 ? 1.0f : -1.0f);
+		}
+	}
+
+	// Test OBBB local axes
+	for (int i = 0; i < 3; i++)
+	{
+		float halfExtentA = obbA.m_halfDimensions[0] * absRotationMatrix.GetElement( 0, i ) +
+			obbA.m_halfDimensions[1] * absRotationMatrix.GetElement( 1, i ) +
+			obbA.m_halfDimensions[2] * absRotationMatrix.GetElement( 2, i );
+		float halfExtentB = obbB.m_halfDimensions[i];
+		float projectedTranslation = translationInAFrame[0] * rotationMatrix.GetElement( 0, i ) +
+			translationInAFrame[1] * rotationMatrix.GetElement( 1, i ) +
+			translationInAFrame[2] * rotationMatrix.GetElement( 2, i );
+
+		// 		if (abs( projectedTranslation ) > halfExtentA + halfExtentB)
+		// 			return false;
+		float overlap = halfExtentA + halfExtentB - abs( projectedTranslation );
+
+		if (overlap < 0.f)
+			return false;
+
+		if (overlap < minOverlap)
+		{
+			minOverlap = overlap;
+			Vec3 thisAxis;
+			switch (i)
+			{
+			case 0: thisAxis = obbB.m_iBasisNormal; break;
+			case 1: thisAxis = obbB.m_jBasisNormal; break;
+			case 2: thisAxis = obbB.m_kBasisNormal; break;
+			default: break;
+			}
+			minTranslationAxis = thisAxis * (projectedTranslation > 0 ? 1.0f : -1.0f);
+		}
+	}
+
+	// Test cross products of axes for separation (using SAT)
+	// Break if no overlap on axis (overlapping requires projections also overlap on all axes)
+	float halfExtentA, halfExtentB;
+
+	// A0 x B0
+	halfExtentA = obbA.m_halfDimensions[1] * absRotationMatrix.GetElement( 2, 0 ) + obbA.m_halfDimensions[2] * absRotationMatrix.GetElement( 1, 0 );
+	halfExtentB = obbB.m_halfDimensions[1] * absRotationMatrix.GetElement( 0, 2 ) + obbB.m_halfDimensions[2] * absRotationMatrix.GetElement( 0, 1 );
+	if (abs( translationInAFrame[2] * rotationMatrix.GetElement( 1, 0 ) - translationInAFrame[1] * rotationMatrix.GetElement( 2, 0 ) ) > halfExtentA + halfExtentB) 
+		return false;
+
+	// A0 x B1
+	halfExtentA = obbA.m_halfDimensions[1] * absRotationMatrix.GetElement( 2, 1 ) + obbA.m_halfDimensions[2] * absRotationMatrix.GetElement( 1, 1 );
+	halfExtentB = obbB.m_halfDimensions[0] * absRotationMatrix.GetElement( 0, 2 ) + obbB.m_halfDimensions[2] * absRotationMatrix.GetElement( 0, 0 );
+	if (abs( translationInAFrame[2] * rotationMatrix.GetElement( 1, 1 ) - translationInAFrame[1] * rotationMatrix.GetElement( 2, 1 ) ) > halfExtentA + halfExtentB) 
+		return false;
+
+	// A0 x B2
+	halfExtentA = obbA.m_halfDimensions[1] * absRotationMatrix.GetElement( 2, 2 ) + obbA.m_halfDimensions[2] * absRotationMatrix.GetElement( 1, 2 );
+	halfExtentB = obbB.m_halfDimensions[0] * absRotationMatrix.GetElement( 0, 1 ) + obbB.m_halfDimensions[1] * absRotationMatrix.GetElement( 0, 0 );
+	if (abs( translationInAFrame[2] * rotationMatrix.GetElement( 1, 2 ) - translationInAFrame[1] * rotationMatrix.GetElement( 2, 2 ) ) > halfExtentA + halfExtentB)
+		return false;
+
+	// A1 x B0
+	halfExtentA = obbA.m_halfDimensions[0] * absRotationMatrix.GetElement( 2, 0 ) + obbA.m_halfDimensions[2] * absRotationMatrix.GetElement( 0, 0 );
+	halfExtentB = obbB.m_halfDimensions[1] * absRotationMatrix.GetElement( 2, 2 ) + obbB.m_halfDimensions[2] * absRotationMatrix.GetElement( 2, 1 );
+	float a = abs( translationInAFrame[0] * rotationMatrix.GetElement( 2, 0 ) - translationInAFrame[2] * rotationMatrix.GetElement( 0, 0 ) );
+	if ( a > halfExtentA + halfExtentB) 
+		//return false;
+
+	// A1 x B1
+	halfExtentA = obbA.m_halfDimensions[0] * absRotationMatrix.GetElement( 2, 1 ) + obbA.m_halfDimensions[2] * absRotationMatrix.GetElement( 0, 1 );
+	halfExtentB = obbB.m_halfDimensions[0] * absRotationMatrix.GetElement( 2, 2 ) + obbB.m_halfDimensions[2] * absRotationMatrix.GetElement( 2, 0 );
+	if (abs( translationInAFrame[0] * rotationMatrix.GetElement( 2, 1 ) - translationInAFrame[2] * rotationMatrix.GetElement( 0, 1 ) ) > halfExtentA + halfExtentB) 
+		return false;
+
+	// A1 x B2
+	halfExtentA = obbA.m_halfDimensions[0] * absRotationMatrix.GetElement( 2, 2 ) + obbA.m_halfDimensions[2] * absRotationMatrix.GetElement( 0, 2 );
+	halfExtentB = obbB.m_halfDimensions[0] * absRotationMatrix.GetElement( 2, 1 ) + obbB.m_halfDimensions[1] * absRotationMatrix.GetElement( 2, 0 );
+	if (abs( translationInAFrame[0] * rotationMatrix.GetElement( 2, 2 ) - translationInAFrame[2] * rotationMatrix.GetElement( 0, 2 ) ) > halfExtentA + halfExtentB) 
+		return false;
+
+	// A2 x B0
+	halfExtentA = obbA.m_halfDimensions[0] * absRotationMatrix.GetElement( 1, 0 ) + obbA.m_halfDimensions[1] * absRotationMatrix.GetElement( 0, 0 );
+	halfExtentB = obbB.m_halfDimensions[1] * absRotationMatrix.GetElement( 2, 2 ) + obbB.m_halfDimensions[2] * absRotationMatrix.GetElement( 2, 1 );
+	if (abs( translationInAFrame[1] * rotationMatrix.GetElement( 0, 0 ) - translationInAFrame[0] * rotationMatrix.GetElement( 1, 0 ) ) > halfExtentA + halfExtentB) 
+		return false;
+
+	// A2 x B1
+	halfExtentA = obbA.m_halfDimensions[0] * absRotationMatrix.GetElement( 1, 1 ) + obbA.m_halfDimensions[1] * absRotationMatrix.GetElement( 0, 1 );
+	halfExtentB = obbB.m_halfDimensions[0] * absRotationMatrix.GetElement( 2, 2 ) + obbB.m_halfDimensions[1] * absRotationMatrix.GetElement( 2, 0 );
+	if (abs( translationInAFrame[1] * rotationMatrix.GetElement( 0, 1 ) - translationInAFrame[0] * rotationMatrix.GetElement( 1, 1 ) ) > halfExtentA + halfExtentB) 
+		return false;
+
+	// A2 x B2
+	halfExtentA = obbA.m_halfDimensions[0] * absRotationMatrix.GetElement( 1, 2 ) + obbA.m_halfDimensions[1] * absRotationMatrix.GetElement( 0, 2 );
+	halfExtentB = obbB.m_halfDimensions[0] * absRotationMatrix.GetElement( 2, 1 ) + obbB.m_halfDimensions[1] * absRotationMatrix.GetElement( 2, 0 );
+	if (abs( translationInAFrame[1] * rotationMatrix.GetElement( 0, 2 ) - translationInAFrame[0] * rotationMatrix.GetElement( 1, 2 ) ) > halfExtentA + halfExtentB) 
+		return false;
+
+	out_mtv = minTranslationAxis * minOverlap;
+
+	return true;
+}
+
+bool DoCapsuleOverlapOBB3D( Vec3 const& boneStart, Vec3 const& boneEnd, float radius, OBB3 const& obb )
+{
+	Vec3 closestPointOnOBB = GetNearestPointOnOBBToLineSegment3D( boneStart, boneEnd, obb );
+	Vec3 cloestPointOnCapsuleBone = GetNearestPointOnLineSegment3D( closestPointOnOBB, boneStart, boneEnd );
+	float distanceToCapsuleBone = (closestPointOnOBB - cloestPointOnCapsuleBone).GetLength();
+
+	if (distanceToCapsuleBone < radius)
+		return true;
+
+	return false;
+}
+
+// out_mtv guarantee pointing from capsule to obb
+bool DoCapsuleOverlapOBB3D( Vec3 const& boneStart, Vec3 const& boneEnd, float radius, OBB3 const& obb, Vec3& out_mtv )
+{
+	Vec3 closestPointOnOBB = GetNearestPointOnOBBToLineSegment3D( boneStart, boneEnd, obb );
+	Vec3 cloestPointOnCapsuleBone = GetNearestPointOnLineSegment3D( closestPointOnOBB, boneStart, boneEnd );
+	Vec3 direction = closestPointOnOBB - cloestPointOnCapsuleBone;
+	float distanceToCapsuleBone = direction.GetLength();
+
+	if (distanceToCapsuleBone < radius)
+	{
+		out_mtv = direction.GetNormalized() * (distanceToCapsuleBone - radius);
+		return true;
+	}
+
+	return false;
+}
+
+bool DoCapsulesOverlap3D( Vec3 const& boneStartA, Vec3 const& boneEndA, float radiusA, Vec3 const& boneStartB, Vec3 const& boneEndB, float radiusB )
+{
+	float radiusSum = radiusA + radiusB;
+	float radiusSumSquared = radiusSum * radiusSum;
+
+	float distanceSquared = GetLineSegmentsDistanceSquared3D( boneStartA, boneEndA, boneStartB, boneEndB );
+
+	return distanceSquared <= radiusSumSquared;
+}
+
+// mtv direction is from A to B
+bool DoCapsulesOverlap3D( Vec3 const& boneStartA, Vec3 const& boneEndA, float radiusA, Vec3 const& boneStartB, Vec3 const& boneEndB, float radiusB, Vec3& out_mtv_XY )
+{
+	Vec3 closestPointOnA, closestPointOnB;
+	float distanceSquared = GetLineSegmentsDistanceSquared3D( boneStartA, boneEndA, boneStartB, boneEndB, closestPointOnA, closestPointOnB );
+
+	float radiusSum = radiusA + radiusB;
+	float radiusSumSquared = radiusSum * radiusSum;
+
+	if (distanceSquared > radiusSumSquared) 
+	{
+		out_mtv_XY = Vec3( 0.f, 0.f, 0.f );
+		return false;
+	}
+
+	float overlapDistance = radiusSum - sqrt( distanceSquared );
+
+	Vec3 direction = closestPointOnA - closestPointOnB;
+
+	Vec3 directionXY = Vec3( direction.x, direction.y, 0.f );
+
+// 	if (directionXY.GetLengthSquared() > 0.0f) 
+// 	{
+// 		directionXY = directionXY.GetNormalized();
+// 	}
+// 	else 
+// 	{
+// 		directionXY = Vec3( 1.0f, 0.0f, 0.0f );
+// 	}
+
+	out_mtv_XY = directionXY * overlapDistance;
+
+	return true;
+}
+
+bool DoCapsuleOverlapSphere3D( Vec3 const& boneStart, Vec3 const& boneEnd, float capsuleRadius, Vec3 const& center, float sphereRadius )
+{
+	Vec3 closestPoint = GetNearestPointOnLineSegment3D( center, boneStart, boneEnd );
+	Vec3 sphereToLineSeg = closestPoint - center;
+	float distanceSquared = sphereToLineSeg.GetLengthSquared();
+
+	float radiusSum = capsuleRadius + sphereRadius;
+	float radiusSumSquared = radiusSum * radiusSum;
+
+	return distanceSquared <= radiusSumSquared;
+}
+
+// mtv direction is from A to B
+bool DoCapsuleOverlapSphere3D( Vec3 const& boneStart, Vec3 const& boneEnd, float capsuleRadius, Vec3 const& center, float sphereRadius, Vec3& out_mtv_XY )
+{
+	Vec3 closestPoint = GetNearestPointOnLineSegment3D( center, boneStart, boneEnd );
+	Vec3 sphereToLineSeg = closestPoint - center;
+	float distanceSquared = sphereToLineSeg.GetLengthSquared();
+
+	float radiusSum = capsuleRadius + sphereRadius;
+	float radiusSumSquared = radiusSum * radiusSum;
+
+	if (distanceSquared > radiusSumSquared)
+	{
+		out_mtv_XY = Vec3( 0.f, 0.f, 0.f );
+		return false;
+	}
+
+	float overlapDistance = radiusSum - sqrt( distanceSquared );
+
+	Vec3 directionXY = Vec3( sphereToLineSeg.x, sphereToLineSeg.y, 0.f );
+
+// 	if (directionXY.GetLengthSquared() > 0.f)
+// 	{
+// 		directionXY = directionXY.GetNormalized();
+// 	}
+
+	out_mtv_XY = directionXY * overlapDistance;
+
+	return true;
+}
+
+
 Vec2 const GetNearestPointOnDisc2D( Vec2 const& referencePos, Vec2 const& discCenter, float discRadius )
 {
 	Vec2 centerToPointVector = referencePos - discCenter;
@@ -552,11 +1118,49 @@ Vec3 const GetNearestPointOnAABB3D( Vec3 const& referencePos, AABB3 const& box )
 	);
 }
 
+Vec3 const GetNearestPointOnLineSegment3D( Vec3 const& referencePos, Vec3 const& lineSegStart, Vec3 const& lineSegEnd )
+{
+	Vec3 lineVector = lineSegEnd - lineSegStart;
+
+	Vec3 startToPointVector = referencePos - lineSegStart;
+
+	if (DotProduct3D( lineVector, startToPointVector ) <= 0)
+		return lineSegStart;
+
+	Vec3 endToPointVector = referencePos - lineSegEnd;
+	if (DotProduct3D( lineVector, endToPointVector ) >= 0)
+		return lineSegEnd;
+
+	Vec3 lineVectorNormal = lineVector.GetNormalized();
+	return lineSegStart + lineVectorNormal * DotProduct3D( startToPointVector, lineVectorNormal );
+}
+
 Vec3 const GetNearestPointOnZCylinder3D( Vec3 const& referencePos, Vec3 const& cylinderStart, float cylinderHeight, float cylinderRadius )
 {
 	Vec2 nearestDisc2D = GetNearestPointOnDisc2D( referencePos.GetXY(), cylinderStart.GetXY(), cylinderRadius );
 	float nearestZ = Clamp( referencePos.z, cylinderStart.z, cylinderStart.z + cylinderHeight );
 	return Vec3( nearestDisc2D.x, nearestDisc2D.y, nearestZ );
+}
+
+Vec3 const GetNearestPointOnOBBToLineSegment3D( Vec3 const& lineSegStart, Vec3 const& lineSegEnd, OBB3 const& obb )
+{
+	Vec3 lineCenter = (lineSegStart + lineSegEnd) * 0.5f;
+	Vec3 delta = lineCenter - obb.m_center;
+	Vec3 closestPoint = obb.m_center;
+
+	float distAlongI = DotProduct3D( delta, obb.m_iBasisNormal );
+	distAlongI = MAX( -obb.m_halfDimensions.x, MIN( obb.m_halfDimensions.x, distAlongI ) );
+	closestPoint += distAlongI * obb.m_iBasisNormal;
+
+	float distAlongJ = DotProduct3D( delta, obb.m_jBasisNormal );
+	distAlongJ = MAX( -obb.m_halfDimensions.y, MIN( obb.m_halfDimensions.y, distAlongJ ) );
+	closestPoint += distAlongJ * obb.m_jBasisNormal;
+
+	float distAlongK = DotProduct3D( delta, obb.m_kBasisNormal );
+	distAlongK = MAX( -obb.m_halfDimensions.z, MIN( obb.m_halfDimensions.z, distAlongK ) );
+	closestPoint += distAlongK * obb.m_kBasisNormal;
+
+	return closestPoint;
 }
 
 Mat44 const GetLookAtMatrix( Vec3 forwardVec )
@@ -654,6 +1258,29 @@ bool PushDiscOutOfFixedAABB2D( Vec2& mobileDiscCenter, float discRadius, AABB2 c
 	{
 		Vec2 centerToNearestPointOnAABBNormal = centerToNearestPointOnAABBVector.GetNormalized();
 		mobileDiscCenter += centerToNearestPointOnAABBNormal * discRadius - centerToNearestPointOnAABBVector;
+		return true;
+	}
+	return false;
+}
+
+bool PushOBBsOutOfEachOther3D( OBB3& obbA, OBB3& obbB )
+{
+	Vec3 mtv;
+	if (DoOBBsOverlap3D( obbA, obbB, mtv ))
+	{
+		obbA.m_center -= mtv * 0.5f;
+		obbB.m_center += mtv * 0.5f;
+		return true;
+	}
+	return false;
+}
+
+bool PushOBBsOutOfFixedOBBs3D( OBB3& mobileOBB3, OBB3 const& FixedOBB3 )
+{
+	Vec3 mtv;
+	if (DoOBBsOverlap3D( mobileOBB3, FixedOBB3, mtv ))
+	{
+		mobileOBB3.m_center -= mtv * 0.5f;
 		return true;
 	}
 	return false;
@@ -983,4 +1610,18 @@ float Hesitate5( float t )
 float CustomFunkyEasingFunction( float t )
 {
 	return Hesitate5( t ) * Hesitate5( t );
+}
+
+void xyzToZyx( float x, float y, float z, float& zyx_z, float& zyx_y, float& zyx_x ) 
+{
+	float sy = SinDegrees( y );
+	float cy = CosDegrees( y );
+	float sx = SinDegrees( x );
+	float cx = CosDegrees( x );
+	float sz = SinDegrees( z );
+	float cz = CosDegrees( z );
+
+	zyx_z = Atan2Degrees( cz * sy * cx + sz * sx, cz * cy );
+	zyx_y = ASinDegrees( -cz * sy * sx + sz * cx );
+	zyx_x = Atan2Degrees( sz * sy * cx - cz * sx, sz * sy * sx + cz * cx );
 }

@@ -67,6 +67,7 @@ void Vec4::operator+=( const Vec4& vecToAdd )
 	x += vecToAdd.x;
 	y += vecToAdd.y;
 	z += vecToAdd.z;
+	w += vecToAdd.w;
 }
 
 
@@ -76,6 +77,7 @@ void Vec4::operator-=( const Vec4& vecToSubtract )
 	x -= vecToSubtract.x;
 	y -= vecToSubtract.y;
 	z -= vecToSubtract.z;
+	w -= vecToSubtract.w;
 }
 
 
@@ -85,6 +87,7 @@ void Vec4::operator*=( const float uniformScale )
 	x *= uniformScale;
 	y *= uniformScale;
 	z *= uniformScale;
+	w *= uniformScale;
 }
 
 
@@ -94,6 +97,7 @@ void Vec4::operator/=( const float uniformDivisor )
 	x /= uniformDivisor;
 	y /= uniformDivisor;
 	z /= uniformDivisor;
+	w /= uniformDivisor;
 }
 
 
@@ -103,6 +107,7 @@ void Vec4::operator=( const Vec4& copyFrom )
 	x = copyFrom.x;
 	y = copyFrom.y;
 	z = copyFrom.z;
+	w = copyFrom.w;
 }
 
 //-----------------------------------------------------------------------------------------------
@@ -115,12 +120,12 @@ const Vec4 operator*( float uniformScale, const Vec4& vecToScale )
 //-----------------------------------------------------------------------------------------------
 bool Vec4::operator==( const Vec4& compare ) const
 {
-	return x == compare.x && y == compare.y && z == compare.z;
+	return x == compare.x && y == compare.y && z == compare.z && w == compare.w;
 }
 
 
 //-----------------------------------------------------------------------------------------------
 bool Vec4::operator!=( const Vec4& compare ) const
 {
-	return !(x == compare.x && y == compare.y && z == compare.z);
+	return !(x == compare.x && y == compare.y && z == compare.z && w == compare.w);
 }

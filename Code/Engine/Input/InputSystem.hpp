@@ -2,6 +2,7 @@
 
 #include <unordered_map>
 #include <vector>
+#include <initializer_list>
 
 #include "Engine/Input/XboxController.hpp"
 #include "Engine/Input/KeyButtonState.hpp"
@@ -9,6 +10,9 @@
 
 constexpr int NUM_KEYCODES = 256;
 constexpr int NUM_XBOX_CONTROLLERS = 1;
+
+constexpr float INPUT_BUFFER_THRESHOLD = 0.4f; // 400ms
+constexpr float SIMUTANEOUS_PRESS_THRESHOLD = 0.1f; // 100ms
 
 struct InputConfig
 {
@@ -48,10 +52,17 @@ public:
 	bool IsKeyDown( std::string keyName );
 	bool IsNewKeyPressed( unsigned int keyIndex );
 	bool IsNewKeyPressed( std::string keyName );
+	bool IsNewKeyPressedRecently( unsigned int keyIndex );
+	bool IsNewKeyPressedRecently( std::string keyName );
+	bool AreNewKeysPressed( std::initializer_list<unsigned int> keyIndexes );
+	bool AreNewKeysPressed( std::initializer_list<std::string> keyNames );
 	bool WasKeyJustPressed( unsigned int keyIndex );
 	bool WasKeyJustPressed( std::string keyName );
 	bool WasKeyJustReleased( unsigned int keyIndex );
 	bool WasKeyJustReleased( std::string keyName );
+	bool WereNewKeysPressedRecently( std::initializer_list<unsigned int> keyIndexes );
+	bool WereNewKeysPressedRecently( std::initializer_list<std::string> keyNames );
+	int GetControllerCount() const;
 	XboxController const& GetController( int controllerID );
 
 	int IsMouseWheelJustScrolled();
@@ -82,7 +93,8 @@ private:
 	std::unordered_map<unsigned int, KeyButtonState> m_buttonState;
 	std::vector<std::unordered_map<std::string, Key>> m_keybindings;
 	std::unordered_map<unsigned int, std::string> m_keyNameLookUp;
-	XboxController m_controllers[NUM_XBOX_CONTROLLERS];
+	//XboxController m_controllers[NUM_XBOX_CONTROLLERS];
+	std::vector<XboxController> m_controllers;
 	IntVec2 m_cursorPosLastFrame = IntVec2::ZERO;
 	int m_mouseWheelState = 0;
 
@@ -116,5 +128,10 @@ extern const unsigned int KEYCODE_INSERT;
 extern const unsigned int KEYCODE_DELETE;
 extern const unsigned int KEYCODE_HOME;
 extern const unsigned int KEYCODE_END;
+extern const unsigned int KEYCODE_SHIFT;
+extern const unsigned int KEYCODE_CTRL;
+extern const unsigned int KEYCODE_MOUSELEFT;
+extern const unsigned int KEYCODE_MOUSERIGHT;
+extern const unsigned int KEYCODE_MOUSEMIDDLE;
 extern const unsigned int KEYCODE_MOUSEWHEELUP;
 extern const unsigned int KEYCODE_MOUSEWHEELDOWN;

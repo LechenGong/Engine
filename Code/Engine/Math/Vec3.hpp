@@ -34,6 +34,7 @@ public:
 	Vec3 const GetNormalized() const;
 
 	void SetFromText( std::string text );
+	std::string ToString() const;
 
 	bool		operator==( const Vec3& compare ) const;		// Vec3 == Vec3
 	bool		operator!=( const Vec3& compare ) const;		// Vec3 != Vec3
@@ -52,9 +53,15 @@ public:
 
 	friend Vec3 const operator*( float uniformScale, Vec3 const& vecToScale ); // float * vec3
 
+	float& operator[] ( size_t index );
+	const float& operator[] ( size_t index ) const;
+
 public:
 	static const Vec3 ZERO;
 	static const Vec3 ONE;
+	static const Vec3 FORWARD;
+	static const Vec3 LEFT;
+	static const Vec3 UP;
 };
 
 

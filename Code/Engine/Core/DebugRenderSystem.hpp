@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <mutex>
 
 #include "Engine/Core/Rgba8.hpp"
 #include "Engine/Math/MathUtils.hpp"
@@ -59,6 +60,17 @@ void DebugAddWorldWireSphere( bool isWired,
 	Rgba8 const& startColor = Rgba8::WHITE,
 	Rgba8 const& endColor = Rgba8::WHITE,
 	DebugRenderMode mode = DebugRenderMode::USE_DEPTH );
+void DebugAddWorldWireCapsule( bool isWired,
+	Vec3 const& base, Vec3 const& top,
+	float radius, float duration,
+	Rgba8 const& startColor = Rgba8::WHITE,
+	Rgba8 const& endColor = Rgba8::WHITE,
+	DebugRenderMode mode = DebugRenderMode::USE_DEPTH );
+void DebugAddWorldWireBox( bool isWired,
+	OBB3 const& bound, float duration,
+	Rgba8 const& startColor = Rgba8::WHITE,
+	Rgba8 const& endColor = Rgba8::WHITE,
+	DebugRenderMode mode = DebugRenderMode::USE_DEPTH );
 void DebugAddWorldArrow( Vec3 const& start, Vec3 const& end,
 	float radius, float duration,
 	Rgba8 const& startColor = Rgba8::WHITE,
@@ -87,4 +99,4 @@ void DebugAddMessage( std::string const& text,
 	Rgba8 const& endColor = Rgba8::WHITE );
 
 bool Command_DebugRenderClear();
-bool Command_DebugRenderToggle();
+bool Command_DebugRenderToggle(); 

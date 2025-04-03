@@ -57,6 +57,11 @@ bool XboxController::IsButtonDown( XboxButtonID buttonID ) const
 
 bool XboxController::IsNewButtonDown( XboxButtonID buttonID ) const
 {
+	if (IsButtonDown( buttonID ) && !WasButtonJustPressed( buttonID ))
+	{
+		int a = 0;
+		a++;
+	}
 	return IsButtonDown( buttonID ) && !WasButtonJustPressed( buttonID );
 }
 

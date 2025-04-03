@@ -16,6 +16,13 @@ EulerAngles::EulerAngles( float yawDegrees, float pitchDegrees, float rollDegree
 	m_rollDegrees = rollDegrees;
 }
 
+EulerAngles::EulerAngles( Vec3 vec3 )
+{
+	m_yawDegrees = vec3.x;
+	m_pitchDegrees = vec3.y;
+	m_rollDegrees = vec3.z;
+}
+
 void EulerAngles::GetAsVectors_IFwd_JLeft_KUp( Vec3& out_forwardIBasis, Vec3& out_leftJBasis, Vec3& out_UpKBasis )
 {
 	float CosYaw = CosDegrees( m_yawDegrees );
@@ -83,4 +90,13 @@ void EulerAngles::SetFromText( std::string text )
 	m_yawDegrees = stof( elems[0] );
 	m_pitchDegrees = stof( elems[1] );
 	m_rollDegrees = stof( elems[2] );
+}
+
+EulerAngles const EulerAngles::operator+( EulerAngles const& other ) const
+{
+	EulerAngles result;
+	result.m_yawDegrees = m_yawDegrees + other.m_yawDegrees;
+	result.m_rollDegrees = m_rollDegrees + other.m_rollDegrees;
+	result.m_pitchDegrees = m_pitchDegrees + other.m_pitchDegrees;
+	return result;
 }

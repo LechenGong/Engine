@@ -6,6 +6,7 @@
 
 struct ID3D11Texture2D;
 struct ID3D11ShaderResourceView;
+struct ID3D11RenderTargetView;
 
 class Texture
 {
@@ -25,5 +26,6 @@ protected:
 	IntVec2				m_dimensions;
 
 	ID3D11Texture2D* m_texture = nullptr;
+	ID3D11RenderTargetView* m_renderTargetView = nullptr;
 	ID3D11ShaderResourceView* m_shaderResourceView = nullptr;
 };

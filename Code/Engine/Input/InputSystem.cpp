@@ -8,6 +8,7 @@
 #include "Engine/Math/MathUtils.hpp"
 #include "Engine/Core/XmlUtils.hpp"
 #include "Engine/Core/ErrorWarningAssert.hpp"
+#include "Engine/Core/Time.hpp"
 
 InputSystem::InputSystem()
 {
@@ -24,6 +25,7 @@ InputSystem::~InputSystem()
 
 void InputSystem::Startup()
 {
+	m_controllers.resize( NUM_XBOX_CONTROLLERS );
 }
 
 void InputSystem::Shutdown()
@@ -68,11 +70,13 @@ void InputSystem::EndFrame()
 void InputSystem::HandleKeyPressed( unsigned int keyIndex )
 {
 	m_buttonState[keyIndex].currDown = true;
+	m_buttonState[keyIndex].timePressed = (float)GetCurrentTimeSeconds();
 }
 
 void InputSystem::HandleKeyReleased( unsigned int keyIndex )
 {
 	m_buttonState[keyIndex].currDown = false;
+	m_buttonState[keyIndex].timePressed = 0.f;
 }
 
 void InputSystem::UpdatePrevState()
@@ -109,6 +113,51 @@ bool InputSystem::IsNewKeyPressed( std::string keyName )
 	return IsNewKeyPressed( m_keybindings[0][keyName].value );
 }
 
+bool InputSystem::IsNewKeyPressedRecently( unsigned int keyIndex )
+{
+	if ((float)GetCurrentTimeSeconds() - m_buttonState[keyIndex].timePressed > SIMUTANEOUS_PRESS_THRESHOLD)
+		return false;
+	return true;
+}
+
+bool InputSystem::IsNewKeyPressedRecently( std::string keyName )
+{
+	return IsNewKeyPressedRecently( m_keybindings[0][keyName].value );
+}
+
+bool InputSystem::AreNewKeysPressed( std::initializer_list<unsigned int> keyIndexes )
+{
+	float min = m_buttonState[*keyIndexes.begin()].timePressed;
+	float max = min;
+	for (unsigned int keyIndex : keyIndexes)
+	{
+		if (!IsNewKeyPressedRecently( keyIndex ))
+			return false;
+		if (m_buttonState[keyIndex].timePressed > max)
+			max = m_buttonState[keyIndex].timePressed;
+		if (m_buttonState[keyIndex].timePressed < min)
+			min = m_buttonState[keyIndex].timePressed;
+	}
+	return (max - min) <= SIMUTANEOUS_PRESS_THRESHOLD;
+}
+
+bool InputSystem::AreNewKeysPressed( std::initializer_list<std::string> keyNames )
+{
+	float min = m_buttonState[m_keybindings[0][*keyNames.begin()].value].timePressed;
+	float max = min;
+	for (std::string keyName : keyNames)
+	{
+		unsigned int keyIndex = m_keybindings[0][keyName].value;
+		if (!IsNewKeyPressedRecently( keyIndex ))
+			return false;
+		if (m_buttonState[keyIndex].timePressed > max)
+			max = m_buttonState[keyIndex].timePressed;
+		if (m_buttonState[keyIndex].timePressed < min)
+			min = m_buttonState[keyIndex].timePressed;
+	}
+	return (max - min) <= SIMUTANEOUS_PRESS_THRESHOLD;
+}
+
 bool InputSystem::WasKeyJustPressed( unsigned int keyIndex )
 {
 	return m_buttonState[keyIndex].prevDown;
@@ -127,6 +176,46 @@ bool InputSystem::WasKeyJustReleased( unsigned int keyIndex )
 bool InputSystem::WasKeyJustReleased( std::string keyName )
 {
 	return WasKeyJustReleased( m_keybindings[0][keyName].value );
+}
+
+bool InputSystem::WereNewKeysPressedRecently( std::initializer_list<unsigned int> keyIndexes )
+{
+	float min = m_buttonState[*keyIndexes.begin()].timePressed;
+	float max = min;
+	for (unsigned int keyIndex : keyIndexes)
+	{
+		if (!IsNewKeyPressedRecently( keyIndex ))
+			return false;
+		if (m_buttonState[keyIndex].timePressed > max)
+			max = m_buttonState[keyIndex].timePressed;
+		if (m_buttonState[keyIndex].timePressed < min)
+			min = m_buttonState[keyIndex].timePressed;
+	}
+	float nowT = (float)GetCurrentTimeSeconds();
+	return (max - min) <= SIMUTANEOUS_PRESS_THRESHOLD && (nowT - min) <= INPUT_BUFFER_THRESHOLD;
+}
+
+bool InputSystem::WereNewKeysPressedRecently( std::initializer_list<std::string> keyNames )
+{
+	float min = m_buttonState[m_keybindings[0][*keyNames.begin()].value].timePressed;
+	float max = min;
+	for (std::string keyName : keyNames)
+	{
+		unsigned int keyIndex = m_keybindings[0][keyName].value;
+		if (!IsNewKeyPressedRecently( keyIndex ))
+			return false;
+		if (m_buttonState[keyIndex].timePressed > max)
+			max = m_buttonState[keyIndex].timePressed;
+		if (m_buttonState[keyIndex].timePressed < min)
+			min = m_buttonState[keyIndex].timePressed;
+	}
+	float nowT = (float)GetCurrentTimeSeconds();
+	return (max - min) <= SIMUTANEOUS_PRESS_THRESHOLD && (nowT - min) <= INPUT_BUFFER_THRESHOLD;
+}
+
+int InputSystem::GetControllerCount() const
+{
+	return (int)m_controllers.size();
 }
 
 XboxController const& InputSystem::GetController( int controllerID )
@@ -522,7 +611,10 @@ std::unordered_map<std::string, Key> InputSystem::GetKeybinding() const
 
 void InputSystem::UpdateCurrentKeybinding( std::string name, int newValue )
 {
-	m_keybindings[0][name].value = newValue;
+	if (m_keybindings[0][name].canBeModified)
+	{
+		m_keybindings[0][name].value = newValue;
+	}
 }
 
 int InputSystem::GetModifiableKeyCount()
@@ -586,5 +678,10 @@ const unsigned int KEYCODE_INSERT = VK_INSERT;
 const unsigned int KEYCODE_DELETE = VK_DELETE;
 const unsigned int KEYCODE_HOME = VK_HOME;
 const unsigned int KEYCODE_END = VK_END;
+const unsigned int KEYCODE_SHIFT = VK_SHIFT;
+const unsigned int KEYCODE_CTRL = VK_CONTROL;
+const unsigned int KEYCODE_MOUSELEFT = 1;
+const unsigned int KEYCODE_MOUSERIGHT = 2;
+const unsigned int KEYCODE_MOUSEMIDDLE = 3;
 const unsigned int KEYCODE_MOUSEWHEELUP = 4;
 const unsigned int KEYCODE_MOUSEWHEELDOWN = 5;

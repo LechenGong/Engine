@@ -8,6 +8,9 @@
 // #include "Engine/Renderer/Camera.hpp"
 // #include "Engine/Math/MathUtils.hpp"
 
+std::mutex debugWorldMutex;
+std::mutex debugScreenMutex;
+
 DebugRenderConfig g_config = {};
 
 bool g_debugRenderVisible = true;
@@ -82,6 +85,54 @@ struct DebugWireSphere
 {
 	Vec3 center;
 	float radius;
+	float remain;
+	float duration;
+	Rgba8 startColor = Rgba8::WHITE;
+	Rgba8 endColor = Rgba8::WHITE;
+	DebugRenderMode mode = DebugRenderMode::USE_DEPTH;
+	std::vector<Vertex_PCU> verts;
+};
+
+struct DebugSolidCapsule
+{
+	Vec3 base;
+	Vec3 top;
+	float radius;
+	float remain;
+	float duration;
+	Rgba8 startColor = Rgba8::WHITE;
+	Rgba8 endColor = Rgba8::WHITE;
+	DebugRenderMode mode = DebugRenderMode::USE_DEPTH;
+	std::vector<Vertex_PCU> verts;
+};
+
+struct DebugWireCapsule
+{
+	Vec3 base;
+	Vec3 top;
+	float radius;
+	float remain;
+	float duration;
+	Rgba8 startColor = Rgba8::WHITE;
+	Rgba8 endColor = Rgba8::WHITE;
+	DebugRenderMode mode = DebugRenderMode::USE_DEPTH;
+	std::vector<Vertex_PCU> verts;
+};
+
+struct DebugSolidBox
+{
+	OBB3 bound;
+	float remain;
+	float duration;
+	Rgba8 startColor = Rgba8::WHITE;
+	Rgba8 endColor = Rgba8::WHITE;
+	DebugRenderMode mode = DebugRenderMode::USE_DEPTH;
+	std::vector<Vertex_PCU> verts;
+};
+
+struct DebugWireBox
+{
+	OBB3 bound;
 	float remain;
 	float duration;
 	Rgba8 startColor = Rgba8::WHITE;
@@ -165,6 +216,10 @@ std::vector<DebugSolidCylinder*>	g_debugSolidCylinder;
 std::vector<DebugWireCylinder*>		g_debugWireCylinder;
 std::vector<DebugSolidSphere*>		g_debugSolidSphere;
 std::vector<DebugWireSphere*>		g_debugWireSphere;
+std::vector<DebugSolidCapsule*>		g_debugSolidCapsule;
+std::vector<DebugWireCapsule*>		g_debugWireCapsule;
+std::vector<DebugSolidBox*>			g_debugSolidBox;
+std::vector<DebugWireBox*>			g_debugWireBox;
 std::vector<DebugArrow*>			g_debugArrow;
 std::vector<DebugWorldText*>		g_debugWorldText;
 std::vector<DebugBillboardText*>	g_debugBillboardText;
@@ -234,9 +289,12 @@ void DebugRenderWorld( Camera const& camera, DebugRenderMode renderingMode )
 	if (g_debugRenderVisible == false)
 		return;
 
-	float deltaSeconds = Clock::s_systemClock.GetDeltaSeconds();
 
+	debugWorldMutex.lock();
+
+	float deltaSeconds = Clock::s_systemClock.GetDeltaSeconds();
 	g_config.m_renderer->BeginCamera( camera );
+	g_config.m_renderer->BindShader( g_config.m_renderer->CreateShader( "Data/Shaders/Default.hlsl", VertexType::VERTEX_PCU ) );
 
 	{
 		for (DebugPoint*& shape : g_debugPoint)
@@ -310,6 +368,11 @@ void DebugRenderWorld( Camera const& camera, DebugRenderMode renderingMode )
 				}
 				}
 				shape->remain -= deltaSeconds;
+			}
+			else if (shape->duration != -1.f && shape->remain <= 0)
+			{
+				delete shape;
+				shape = nullptr;
 			}
 		}
 	}
@@ -387,6 +450,11 @@ void DebugRenderWorld( Camera const& camera, DebugRenderMode renderingMode )
 				}
 				shape->remain -= deltaSeconds;
 			}
+			else if (shape->duration != -1.f && shape->remain <= 0)
+			{
+				delete shape;
+				shape = nullptr;
+			}
 		}
 	}
 
@@ -462,6 +530,11 @@ void DebugRenderWorld( Camera const& camera, DebugRenderMode renderingMode )
 				}
 				}
 				shape->remain -= deltaSeconds;
+			}
+			else if (shape->duration != -1.f && shape->remain <= 0)
+			{
+				delete shape;
+				shape = nullptr;
 			}
 		}
 	}
@@ -540,6 +613,11 @@ void DebugRenderWorld( Camera const& camera, DebugRenderMode renderingMode )
 				g_config.m_renderer->SetRasterizerState( RasterizerMode::SOLID_CULL_BACK );
 				shape->remain -= deltaSeconds;
 			}
+			else if (shape->duration != -1.f && shape->remain <= 0)
+			{
+				delete shape;
+				shape = nullptr;
+			}
 		}
 	}
 
@@ -615,6 +693,11 @@ void DebugRenderWorld( Camera const& camera, DebugRenderMode renderingMode )
 				}
 				}
 				shape->remain -= deltaSeconds;
+			}
+			else if (shape->duration != -1.f && shape->remain <= 0)
+			{
+				delete shape;
+				shape = nullptr;
 			}
 		}
 	}
@@ -693,6 +776,337 @@ void DebugRenderWorld( Camera const& camera, DebugRenderMode renderingMode )
 				shape->remain -= deltaSeconds;
 				g_config.m_renderer->SetRasterizerState( RasterizerMode::SOLID_CULL_BACK );
 			}
+			else if (shape->duration != -1.f && shape->remain <= 0)
+			{
+				delete shape;
+				shape = nullptr;
+			}
+		}
+	}
+
+	{
+		for (DebugSolidCapsule*& shape : g_debugSolidCapsule)
+		{
+			if (shape == nullptr)
+				continue;
+			if (shape->mode != renderingMode)
+				continue;
+
+			if (shape->duration == -1.f || shape->remain > 0.f)
+			{
+				float fraction = Clamp( (shape->duration - shape->remain) / shape->duration, 0.f, 1.f );
+				Rgba8 startColor = shape->startColor;
+				Rgba8 endColor = shape->endColor;
+				Rgba8 color(
+					static_cast<unsigned char>((int)startColor.r + (int)(((float)endColor.r - (float)startColor.r) * fraction)),
+					static_cast<unsigned char>((int)startColor.g + (int)(((float)endColor.g - (float)startColor.g) * fraction)),
+					static_cast<unsigned char>((int)startColor.b + (int)(((float)endColor.b - (float)startColor.b) * fraction)),
+					static_cast<unsigned char>((int)startColor.a + (int)(((float)endColor.a - (float)startColor.a) * fraction))
+				);
+				switch (renderingMode)
+				{
+				case DebugRenderMode::ALWAYS:
+				{
+					g_config.m_renderer->SetModelConstants( Mat44(), color );
+					g_config.m_renderer->SetBlendMode( BlendMode::ALPHA );
+					g_config.m_renderer->SetDepthMode( DepthMode::DISABLED );
+					g_config.m_renderer->SetRasterizerState( RasterizerMode::SOLID_CULL_BACK );
+					g_config.m_renderer->BindTexture( nullptr );
+					g_config.m_renderer->DrawVertexArray( shape->verts );
+					break;
+				}
+				case DebugRenderMode::USE_DEPTH:
+				{
+					g_config.m_renderer->SetModelConstants( Mat44(), color );
+					g_config.m_renderer->SetBlendMode( BlendMode::ALPHA );
+					g_config.m_renderer->SetDepthMode( DepthMode::ENABLED );
+					g_config.m_renderer->SetRasterizerState( RasterizerMode::SOLID_CULL_BACK );
+					g_config.m_renderer->BindTexture( nullptr );
+					g_config.m_renderer->DrawVertexArray( shape->verts );
+					break;
+				}
+				case DebugRenderMode::NUL:
+				{
+					g_config.m_renderer->SetModelConstants( Mat44(), color );
+					g_config.m_renderer->SetBlendMode( BlendMode::ALPHA );
+					g_config.m_renderer->SetDepthMode( DepthMode::ENABLED );
+					g_config.m_renderer->SetRasterizerState( RasterizerMode::SOLID_CULL_BACK );
+					g_config.m_renderer->BindTexture( nullptr );
+					g_config.m_renderer->DrawVertexArray( shape->verts );
+					break;
+				}
+				case DebugRenderMode::X_RAY:
+				{
+					Rgba8 tColor = color;
+					tColor.a = 45;
+					g_config.m_renderer->SetModelConstants( Mat44(), tColor );
+					g_config.m_renderer->SetBlendMode( BlendMode::ALPHA );
+					g_config.m_renderer->SetDepthMode( DepthMode::DISABLED );
+					g_config.m_renderer->SetRasterizerState( RasterizerMode::SOLID_CULL_BACK );
+					g_config.m_renderer->BindTexture( nullptr );
+					g_config.m_renderer->DrawVertexArray( shape->verts );
+
+					g_config.m_renderer->SetModelConstants( Mat44(), color );
+					g_config.m_renderer->SetBlendMode( BlendMode::OPAQUE );
+					g_config.m_renderer->SetDepthMode( DepthMode::ENABLED );
+					g_config.m_renderer->SetRasterizerState( RasterizerMode::SOLID_CULL_BACK );
+					g_config.m_renderer->BindTexture( nullptr );
+					g_config.m_renderer->DrawVertexArray( shape->verts );
+					break;
+				}
+				}
+				shape->remain -= deltaSeconds;
+			}
+			else if (shape->duration != -1.f && shape->remain <= 0)
+			{
+				delete shape;
+				shape = nullptr;
+			}
+		}
+	}
+
+	{
+		for (DebugWireCapsule*& shape : g_debugWireCapsule)
+		{
+			if (shape == nullptr)
+				continue;
+			if (shape->mode != renderingMode)
+				continue;
+
+			if (shape->remain == -1.f || shape->remain > 0.f)
+			{
+				float fraction = Clamp( (shape->duration - shape->remain) / shape->duration, 0.f, 1.f );
+				Rgba8 startColor = shape->startColor;
+				Rgba8 endColor = shape->endColor;
+				Rgba8 color(
+					static_cast<unsigned char>((int)startColor.r + (int)(((float)endColor.r - (float)startColor.r) * fraction)),
+					static_cast<unsigned char>((int)startColor.g + (int)(((float)endColor.g - (float)startColor.g) * fraction)),
+					static_cast<unsigned char>((int)startColor.b + (int)(((float)endColor.b - (float)startColor.b) * fraction)),
+					static_cast<unsigned char>((int)startColor.a + (int)(((float)endColor.a - (float)startColor.a) * fraction))
+				);
+				switch (renderingMode)
+				{
+				case DebugRenderMode::ALWAYS:
+				{
+					g_config.m_renderer->SetModelConstants( Mat44(), color );
+					g_config.m_renderer->SetBlendMode( BlendMode::ALPHA );
+					g_config.m_renderer->SetDepthMode( DepthMode::DISABLED );
+					g_config.m_renderer->SetRasterizerState( RasterizerMode::WIREFRAME_CULL_NONE );
+					g_config.m_renderer->BindTexture( nullptr );
+					g_config.m_renderer->DrawVertexArray( shape->verts );
+					break;
+				}
+				case DebugRenderMode::USE_DEPTH:
+				{
+					g_config.m_renderer->SetModelConstants( Mat44(), color );
+					g_config.m_renderer->SetBlendMode( BlendMode::ALPHA );
+					g_config.m_renderer->SetDepthMode( DepthMode::ENABLED );
+					g_config.m_renderer->SetRasterizerState( RasterizerMode::WIREFRAME_CULL_NONE );
+					g_config.m_renderer->BindTexture( nullptr );
+					g_config.m_renderer->DrawVertexArray( shape->verts );
+					break;
+				}
+				case DebugRenderMode::NUL:
+				{
+					g_config.m_renderer->SetModelConstants( Mat44(), color );
+					g_config.m_renderer->SetBlendMode( BlendMode::ALPHA );
+					g_config.m_renderer->SetDepthMode( DepthMode::ENABLED );
+					g_config.m_renderer->SetRasterizerState( RasterizerMode::WIREFRAME_CULL_NONE );
+					g_config.m_renderer->BindTexture( nullptr );
+					g_config.m_renderer->DrawVertexArray( shape->verts );
+					break;
+				}
+				case DebugRenderMode::X_RAY:
+				{
+					Rgba8 tColor = color;
+					tColor.a = 45;
+					g_config.m_renderer->SetModelConstants( Mat44(), tColor );
+					g_config.m_renderer->SetBlendMode( BlendMode::ALPHA );
+					g_config.m_renderer->SetDepthMode( DepthMode::DISABLED );
+					g_config.m_renderer->SetRasterizerState( RasterizerMode::WIREFRAME_CULL_NONE );
+					g_config.m_renderer->BindTexture( nullptr );
+					g_config.m_renderer->DrawVertexArray( shape->verts );
+
+					g_config.m_renderer->SetModelConstants( Mat44(), color );
+					g_config.m_renderer->SetBlendMode( BlendMode::OPAQUE );
+					g_config.m_renderer->SetDepthMode( DepthMode::ENABLED );
+					g_config.m_renderer->SetRasterizerState( RasterizerMode::WIREFRAME_CULL_NONE );
+					g_config.m_renderer->BindTexture( nullptr );
+					g_config.m_renderer->DrawVertexArray( shape->verts );
+					break;
+				}
+				}
+				g_config.m_renderer->SetRasterizerState( RasterizerMode::SOLID_CULL_BACK );
+				shape->remain -= deltaSeconds;
+			}
+			else if (shape->duration != -1.f && shape->remain <= 0)
+			{
+				delete shape;
+				shape = nullptr;
+			}
+		}
+	}
+
+	{
+		for (DebugSolidBox*& shape : g_debugSolidBox)
+		{
+			if (shape == nullptr)
+				continue;
+			if (shape->mode != renderingMode)
+				continue;
+
+			if (shape->duration == -1.f || shape->remain > 0.f)
+			{
+				float fraction = Clamp( (shape->duration - shape->remain) / shape->duration, 0.f, 1.f );
+				Rgba8 startColor = shape->startColor;
+				Rgba8 endColor = shape->endColor;
+				Rgba8 color(
+					static_cast<unsigned char>((int)startColor.r + (int)(((float)endColor.r - (float)startColor.r) * fraction)),
+					static_cast<unsigned char>((int)startColor.g + (int)(((float)endColor.g - (float)startColor.g) * fraction)),
+					static_cast<unsigned char>((int)startColor.b + (int)(((float)endColor.b - (float)startColor.b) * fraction)),
+					static_cast<unsigned char>((int)startColor.a + (int)(((float)endColor.a - (float)startColor.a) * fraction))
+				);
+				switch (renderingMode)
+				{
+				case DebugRenderMode::ALWAYS:
+				{
+					g_config.m_renderer->SetModelConstants( Mat44(), color );
+					g_config.m_renderer->SetBlendMode( BlendMode::ALPHA );
+					g_config.m_renderer->SetDepthMode( DepthMode::DISABLED );
+					g_config.m_renderer->SetRasterizerState( RasterizerMode::SOLID_CULL_BACK );
+					g_config.m_renderer->BindTexture( nullptr );
+					g_config.m_renderer->DrawVertexArray( shape->verts );
+					break;
+				}
+				case DebugRenderMode::USE_DEPTH:
+				{
+					g_config.m_renderer->SetModelConstants( Mat44(), color );
+					g_config.m_renderer->SetBlendMode( BlendMode::ALPHA );
+					g_config.m_renderer->SetDepthMode( DepthMode::ENABLED );
+					g_config.m_renderer->SetRasterizerState( RasterizerMode::SOLID_CULL_BACK );
+					g_config.m_renderer->BindTexture( nullptr );
+					g_config.m_renderer->DrawVertexArray( shape->verts );
+					break;
+				}
+				case DebugRenderMode::NUL:
+				{
+					g_config.m_renderer->SetModelConstants( Mat44(), color );
+					g_config.m_renderer->SetBlendMode( BlendMode::ALPHA );
+					g_config.m_renderer->SetDepthMode( DepthMode::ENABLED );
+					g_config.m_renderer->SetRasterizerState( RasterizerMode::SOLID_CULL_BACK );
+					g_config.m_renderer->BindTexture( nullptr );
+					g_config.m_renderer->DrawVertexArray( shape->verts );
+					break;
+				}
+				case DebugRenderMode::X_RAY:
+				{
+					Rgba8 tColor = color;
+					tColor.a = 45;
+					g_config.m_renderer->SetModelConstants( Mat44(), tColor );
+					g_config.m_renderer->SetBlendMode( BlendMode::ALPHA );
+					g_config.m_renderer->SetDepthMode( DepthMode::DISABLED );
+					g_config.m_renderer->SetRasterizerState( RasterizerMode::SOLID_CULL_BACK );
+					g_config.m_renderer->BindTexture( nullptr );
+					g_config.m_renderer->DrawVertexArray( shape->verts );
+
+					g_config.m_renderer->SetModelConstants( Mat44(), color );
+					g_config.m_renderer->SetBlendMode( BlendMode::OPAQUE );
+					g_config.m_renderer->SetDepthMode( DepthMode::ENABLED );
+					g_config.m_renderer->SetRasterizerState( RasterizerMode::SOLID_CULL_BACK );
+					g_config.m_renderer->BindTexture( nullptr );
+					g_config.m_renderer->DrawVertexArray( shape->verts );
+					break;
+				}
+				}
+				shape->remain -= deltaSeconds;
+			}
+			else if (shape->duration != -1.f && shape->remain <= 0)
+			{
+				delete shape;
+				shape = nullptr;
+			}
+		}
+	}
+
+	{
+		for (DebugWireBox*& shape : g_debugWireBox)
+		{
+			if (shape == nullptr)
+				continue;
+			if (shape->mode != renderingMode)
+				continue;
+
+			if (shape->remain == -1.f || shape->remain > 0.f)
+			{
+				float fraction = Clamp( (shape->duration - shape->remain) / shape->duration, 0.f, 1.f );
+				Rgba8 startColor = shape->startColor;
+				Rgba8 endColor = shape->endColor;
+				Rgba8 color(
+					static_cast<unsigned char>((int)startColor.r + (int)(((float)endColor.r - (float)startColor.r) * fraction)),
+					static_cast<unsigned char>((int)startColor.g + (int)(((float)endColor.g - (float)startColor.g) * fraction)),
+					static_cast<unsigned char>((int)startColor.b + (int)(((float)endColor.b - (float)startColor.b) * fraction)),
+					static_cast<unsigned char>((int)startColor.a + (int)(((float)endColor.a - (float)startColor.a) * fraction))
+				);
+				switch (renderingMode)
+				{
+				case DebugRenderMode::ALWAYS:
+				{
+					g_config.m_renderer->SetModelConstants( Mat44(), color );
+					g_config.m_renderer->SetBlendMode( BlendMode::ALPHA );
+					g_config.m_renderer->SetDepthMode( DepthMode::DISABLED );
+					g_config.m_renderer->SetRasterizerState( RasterizerMode::WIREFRAME_CULL_NONE );
+					g_config.m_renderer->BindTexture( nullptr );
+					g_config.m_renderer->DrawVertexArray( shape->verts );
+					break;
+				}
+				case DebugRenderMode::USE_DEPTH:
+				{
+					g_config.m_renderer->SetModelConstants( Mat44(), color );
+					g_config.m_renderer->SetBlendMode( BlendMode::ALPHA );
+					g_config.m_renderer->SetDepthMode( DepthMode::ENABLED );
+					g_config.m_renderer->SetRasterizerState( RasterizerMode::WIREFRAME_CULL_NONE );
+					g_config.m_renderer->BindTexture( nullptr );
+					g_config.m_renderer->DrawVertexArray( shape->verts );
+					break;
+				}
+				case DebugRenderMode::NUL:
+				{
+					g_config.m_renderer->SetModelConstants( Mat44(), color );
+					g_config.m_renderer->SetBlendMode( BlendMode::ALPHA );
+					g_config.m_renderer->SetDepthMode( DepthMode::ENABLED );
+					g_config.m_renderer->SetRasterizerState( RasterizerMode::WIREFRAME_CULL_NONE );
+					g_config.m_renderer->BindTexture( nullptr );
+					g_config.m_renderer->DrawVertexArray( shape->verts );
+					break;
+				}
+				case DebugRenderMode::X_RAY:
+				{
+					Rgba8 tColor = color;
+					tColor.a = 45;
+					g_config.m_renderer->SetModelConstants( Mat44(), tColor );
+					g_config.m_renderer->SetBlendMode( BlendMode::ALPHA );
+					g_config.m_renderer->SetDepthMode( DepthMode::DISABLED );
+					g_config.m_renderer->SetRasterizerState( RasterizerMode::WIREFRAME_CULL_NONE );
+					g_config.m_renderer->BindTexture( nullptr );
+					g_config.m_renderer->DrawVertexArray( shape->verts );
+
+					g_config.m_renderer->SetModelConstants( Mat44(), color );
+					g_config.m_renderer->SetBlendMode( BlendMode::OPAQUE );
+					g_config.m_renderer->SetDepthMode( DepthMode::ENABLED );
+					g_config.m_renderer->SetRasterizerState( RasterizerMode::WIREFRAME_CULL_NONE );
+					g_config.m_renderer->BindTexture( nullptr );
+					g_config.m_renderer->DrawVertexArray( shape->verts );
+					break;
+				}
+				}
+				g_config.m_renderer->SetRasterizerState( RasterizerMode::SOLID_CULL_BACK );
+				shape->remain -= deltaSeconds;
+			}
+			else if (shape->duration != -1.f && shape->remain <= 0)
+			{
+				delete shape;
+				shape = nullptr;
+			}
 		}
 	}
 
@@ -769,6 +1183,11 @@ void DebugRenderWorld( Camera const& camera, DebugRenderMode renderingMode )
 				}
 				shape->remain -= deltaSeconds;
 			}
+			else if (shape->duration != -1.f && shape->remain <= 0)
+			{
+				delete shape;
+				shape = nullptr;
+			}
 		}
 	}
 
@@ -800,6 +1219,11 @@ void DebugRenderWorld( Camera const& camera, DebugRenderMode renderingMode )
 				g_config.m_renderer->DrawVertexArray( shape->verts );
 				shape->remain -= deltaSeconds;
 				g_config.m_renderer->BindTexture( nullptr );
+			}
+			else if (shape->duration != -1.f && shape->remain <= 0)
+			{
+				delete shape;
+				shape = nullptr;
 			}
 		}
 	}
@@ -834,6 +1258,11 @@ void DebugRenderWorld( Camera const& camera, DebugRenderMode renderingMode )
 				g_config.m_renderer->DrawVertexArray( shape->verts );
 				shape->remain -= deltaSeconds;
 				g_config.m_renderer->BindTexture( nullptr );
+			}
+			else if (shape->duration != -1.f && shape->remain <= 0)
+			{
+				delete shape;
+				shape = nullptr;
 			}
 		}
 	}
@@ -905,16 +1334,25 @@ void DebugRenderWorld( Camera const& camera, DebugRenderMode renderingMode )
 				}
 				shape->remain -= deltaSeconds;
 			}
+			else if (shape->duration != -1.f && shape->remain <= 0)
+			{
+				delete shape;
+				shape = nullptr;
+			}
 		}
 	}
 
 	g_config.m_renderer->EndCamera( camera );
+
+	debugWorldMutex.unlock();
 }
 
 void DebugRenderScreen( Camera const& camera )
 {
 	if (g_debugRenderVisible == false)
 		return;
+
+	debugScreenMutex.lock();
 
 	float deltaSeconds = Clock::s_systemClock.GetDeltaSeconds();
 	BitmapFont* font = g_config.m_renderer->CreateOrGetBitmapFont( "Data/Fonts/SquirrelFixedFont.png" );
@@ -1017,6 +1455,8 @@ void DebugRenderScreen( Camera const& camera )
 	}
 
 	g_config.m_renderer->EndCamera( camera );
+
+	debugScreenMutex.unlock();
 }
 
 void DebugRenderEndFrame()
@@ -1036,7 +1476,9 @@ void DebugAddWorldPoint( Vec3 const& pos, float radius, float duration, Rgba8 co
 			return;
 		}
 	}
+	debugWorldMutex.lock();
 	g_debugPoint.push_back( newPoint );
+	debugWorldMutex.unlock();
 }
 
 void DebugAddWorldLine( Vec3 const& start, Vec3 const& end, float radius, float duration, Rgba8 const& startColor, Rgba8 const& endColor, DebugRenderMode mode )
@@ -1052,7 +1494,9 @@ void DebugAddWorldLine( Vec3 const& start, Vec3 const& end, float radius, float 
 			return;
 		}
 	}
+	debugWorldMutex.lock();
 	g_debugLine.push_back( newLine );
+	debugWorldMutex.unlock();
 }
 
 void DebugAddWorldWireCylinder( bool isWired, Vec3 const& base, Vec3 const& top, float radius, float duration, Rgba8 const& startColor, Rgba8 const& endColor, DebugRenderMode mode )
@@ -1070,7 +1514,9 @@ void DebugAddWorldWireCylinder( bool isWired, Vec3 const& base, Vec3 const& top,
 				return;
 			}
 		}
+		debugWorldMutex.lock();
 		g_debugWireCylinder.push_back( newWireCylinder );
+		debugWorldMutex.unlock();
 	}
 	else
 	{
@@ -1085,7 +1531,9 @@ void DebugAddWorldWireCylinder( bool isWired, Vec3 const& base, Vec3 const& top,
 				return;
 			}
 		}
+		debugWorldMutex.lock();
 		g_debugSolidCylinder.push_back( newSolidCylinder );
+		debugWorldMutex.unlock();
 	}
 }
 
@@ -1095,7 +1543,7 @@ void DebugAddWorldWireSphere( bool isWired, Vec3 const& center, float radius, fl
 	{
 		DebugWireSphere* newWireSphere = new DebugWireSphere{ center, radius, duration, duration, startColor, endColor, mode };
 		newWireSphere->verts.reserve( 1000 );
-		AddVertsForSphere3D( newWireSphere->verts, center, radius, Rgba8::WHITE, AABB2::ZERO_TO_ONE, 16, 8 );
+		AddVertsForSphere3D( newWireSphere->verts, center, radius, Rgba8::WHITE, AABB2::ZERO_TO_ONE, 8, 4 );
 		for (DebugWireSphere*& shape : g_debugWireSphere)
 		{
 			if (shape == nullptr)
@@ -1104,13 +1552,15 @@ void DebugAddWorldWireSphere( bool isWired, Vec3 const& center, float radius, fl
 				return;
 			}
 		}
+		debugWorldMutex.lock();
 		g_debugWireSphere.push_back( newWireSphere );
+		debugWorldMutex.unlock();
 	}
 	else
 	{
 		DebugSolidSphere* newSolidSphere = new DebugSolidSphere{ center, radius, duration, duration, startColor, endColor, mode };
 		newSolidSphere->verts.reserve( 1000 );
-		AddVertsForSphere3D( newSolidSphere->verts, center, radius, Rgba8::WHITE, AABB2::ZERO_TO_ONE, 16, 8 );
+		AddVertsForSphere3D( newSolidSphere->verts, center, radius, Rgba8::WHITE, AABB2::ZERO_TO_ONE, 8, 4 );
 		for (DebugSolidSphere*& shape : g_debugSolidSphere)
 		{
 			if (shape == nullptr)
@@ -1119,7 +1569,113 @@ void DebugAddWorldWireSphere( bool isWired, Vec3 const& center, float radius, fl
 				return;
 			}
 		}
+		debugWorldMutex.lock();
 		g_debugSolidSphere.push_back( newSolidSphere );
+		debugWorldMutex.unlock();
+	}
+}
+
+void DebugAddWorldWireCapsule( bool isWired, Vec3 const& base, Vec3 const& top, float radius, float duration, Rgba8 const& startColor, Rgba8 const& endColor, DebugRenderMode mode )
+{
+	if (isWired)
+	{
+		// Create a new wireframe capsule
+		DebugWireCapsule* newWireCapsule = new DebugWireCapsule{ base, top, radius, duration, duration, startColor, endColor, mode };
+		newWireCapsule->verts.reserve( 200 );
+
+		// Add the vertices for the capsule's wireframe (similar to capsule)
+		AddVertsForCapsule3D( newWireCapsule->verts, base, top, radius, Rgba8::WHITE, AABB2::ZERO_TO_ONE, 8 );
+
+		// Look for the first empty slot in the global debug capsule list
+		for (DebugWireCapsule*& shape : g_debugWireCapsule)
+		{
+			if (shape == nullptr)
+			{
+				shape = newWireCapsule;
+				return;
+			}
+		}
+
+		// Lock the mutex and push the new capsule into the global list
+		debugWorldMutex.lock();
+		g_debugWireCapsule.push_back( newWireCapsule );
+		debugWorldMutex.unlock();
+	}
+	else
+	{
+		// Create a new solid capsule
+		DebugSolidCapsule* newSolidCapsule = new DebugSolidCapsule{ base, top, radius, duration, duration, startColor, endColor, mode };
+		newSolidCapsule->verts.reserve( 200 );
+
+		// Add the vertices for the capsule (solid)
+		AddVertsForCapsule3D( newSolidCapsule->verts, base, top, radius, Rgba8::WHITE, AABB2::ZERO_TO_ONE, 8 );
+
+		// Look for the first empty slot in the global solid capsule list
+		for (DebugSolidCapsule*& shape : g_debugSolidCapsule)
+		{
+			if (shape == nullptr)
+			{
+				shape = newSolidCapsule;
+				return;
+			}
+		}
+
+		// Lock the mutex and push the new capsule into the global list
+		debugWorldMutex.lock();
+		g_debugSolidCapsule.push_back( newSolidCapsule );
+		debugWorldMutex.unlock();
+	}
+}
+
+void DebugAddWorldWireBox( bool isWired, OBB3 const& bound, float duration, Rgba8 const& startColor, Rgba8 const& endColor, DebugRenderMode mode )
+{
+	if (isWired)
+	{
+		// Create a new wireframe box
+		DebugWireBox* newWireBox = new DebugWireBox{ bound, duration, duration, startColor, endColor, mode };
+		newWireBox->verts.reserve( 200 );
+
+		// Add the vertices for the box's wireframe (similar to box)
+		AddVertsForOBB3D( newWireBox->verts, bound, Rgba8::WHITE, AABB2::ZERO_TO_ONE );
+
+		// Look for the first empty slot in the global debug box list
+		for (DebugWireBox*& shape : g_debugWireBox)
+		{
+			if (shape == nullptr)
+			{
+				shape = newWireBox;
+				return;
+			}
+		}
+
+		// Lock the mutex and push the new box into the global list
+		debugWorldMutex.lock();
+		g_debugWireBox.push_back( newWireBox );
+		debugWorldMutex.unlock();
+	}
+	else
+	{
+		// Create a new solid box
+		DebugSolidBox* newSolidBox = new DebugSolidBox{ bound, duration, duration, startColor, endColor, mode };
+		newSolidBox->verts.reserve( 200 );
+
+		// Add the vertices for the box (solid)
+		AddVertsForOBB3D( newSolidBox->verts, bound, Rgba8::WHITE, AABB2::ZERO_TO_ONE );
+
+		// Look for the first empty slot in the global solid box list
+		for (DebugSolidBox*& shape : g_debugSolidBox)
+		{
+			if (shape == nullptr)
+			{
+				shape = newSolidBox;
+				return;
+			}
+		}
+
+		// Lock the mutex and push the new box into the global list
+		debugWorldMutex.lock();
+		g_debugSolidBox.push_back( newSolidBox );
+		debugWorldMutex.unlock();
 	}
 }
 
@@ -1138,7 +1694,9 @@ void DebugAddWorldArrow( Vec3 const& start, Vec3 const& end, float radius, float
 			return;
 		}
 	}
+	debugWorldMutex.lock();
 	g_debugArrow.push_back( newArrow );
+	debugWorldMutex.unlock();
 }
 
 void DebugAddWorldText( std::string const& text, Mat44 const& transform, float textHeight, Vec2 const& alignment, float duration, Rgba8 const& startColor, Rgba8 const& endColor )
@@ -1156,7 +1714,9 @@ void DebugAddWorldText( std::string const& text, Mat44 const& transform, float t
 			return;
 		}
 	}
+	debugWorldMutex.lock();
 	g_debugWorldText.push_back( newWorldText );
+	debugWorldMutex.unlock();
 }
 
 void DebugAddWorldBillboardText( std::string const& text, Vec3 const& origin, float textHeight, Vec2 const& alignment, float duration, Rgba8 const& startColor, Rgba8 const& endColor )
@@ -1173,7 +1733,9 @@ void DebugAddWorldBillboardText( std::string const& text, Vec3 const& origin, fl
 			return;
 		}
 	}
+	debugWorldMutex.lock();
 	g_debugBillboardText.push_back( newBillboardText );
+	debugWorldMutex.unlock();
 }
 
 void DebugAddWorldBasis( Mat44 const& transform, float duration, DebugRenderMode mode )
@@ -1196,7 +1758,9 @@ void DebugAddWorldBasis( Mat44 const& transform, float duration, DebugRenderMode
 			return;
 		}
 	}
+	debugWorldMutex.lock();
 	g_debugWorldBasis.push_back( newWorldBasis );
+	debugWorldMutex.unlock();
 }
 
 void DebugAddScreenText( std::string const& text, Vec2 const& position, float size, Vec2 const& alignment, float duration, Rgba8 const& startColor, Rgba8 const& endColor )
@@ -1210,7 +1774,9 @@ void DebugAddScreenText( std::string const& text, Vec2 const& position, float si
 // 			return;
 // 		}
 // 	}
+	debugScreenMutex.lock();
 	g_debugScreenText.push_back( newScreenText );
+	debugScreenMutex.unlock();
 }
 
 void DebugAddMessage( std::string const& text, float duration, Rgba8 const& startColor, Rgba8 const& endColor )
@@ -1224,7 +1790,9 @@ void DebugAddMessage( std::string const& text, float duration, Rgba8 const& star
 // 			return;
 // 		}
 // 	}
+	debugScreenMutex.lock();
 	g_debugMessage.push_back( newDebugMessage );
+	debugScreenMutex.unlock();
 }
 
 bool Command_DebugRenderClear()

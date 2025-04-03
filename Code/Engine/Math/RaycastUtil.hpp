@@ -8,6 +8,7 @@
 #include "Engine/Math/AABB3.hpp"
 #include "Engine/Math/OBB3.hpp"
 #include "Engine/Core/Vertex_PCU.hpp"
+#include "Engine/Math/Convex2.hpp"
 
 struct RaycastResult2D
 {
@@ -40,6 +41,7 @@ struct RaycastResult3D
 bool RaycastDisc2D( RaycastResult2D& result, Vec2 startPos, Vec2 fwdNormal, float maxDist, Vec2 discCenter, float discRadius );
 bool RaycastSegment2D( RaycastResult2D& result, Vec2 startPos, Vec2 fwdNormal, float maxDist, Vec2 segmentStart, Vec2 segmentFwdNormal);
 bool RaycastAABB2D( RaycastResult2D& result, Vec2 startPos, Vec2 fwdNormal, float maxDist, AABB2 aabb );
+bool RaycastConvex2D( RaycastResult2D& result, Vec2 startPos, Vec2 fwdNormal, float maxDist, ConvexHull2 convexHull2 );
 
 bool RaycastGridFirst2D( RaycastResult2D& result, Vec2 startPos, Vec2 fwdNormal, float maxDist, void const* gridSolidity, int gridLength, int gridWidth );
 bool RaycastGridAll2D( std::vector<RaycastResult2D>& results, Vec2 startPos, Vec2 fwdNormal, float maxDist, void const* gridSolidity, int gridLength, int gridWidth );
@@ -49,3 +51,4 @@ bool RaycastZPlane3D( RaycastResult3D& result, Vec3 startPos, Vec3 fwdNormal, fl
 bool RaycastAABB3D( RaycastResult3D& result, Vec3 startPos, Vec3 fwdNormal, float maxDist, AABB3 aabb );
 bool RaycastSphere3D( RaycastResult3D& result, Vec3 startPos, Vec3 fwdNormal, float maxDist, Vec3 const& sphereCenter, float sphereRadius );
 bool RaycastOBB3D( RaycastResult3D& result, Vec3 startPos, Vec3 fwdNormal, float maxDist, OBB3 obb );
+bool RaycastCapsule3D( RaycastResult3D& result, Vec3 startPos, Vec3 fwdNormal, float maxDist, Vec3 const& boneStart, Vec3 const& boneEnd, float capsuleRadius );

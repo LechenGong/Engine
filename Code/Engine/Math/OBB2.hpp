@@ -20,4 +20,5 @@ public:
 	void Translate( Vec2 translation );
 	void SetCenter( Vec2 newCenter );
 	void RotateAboutCenter( float rotationDeltaDegree );
+	void RotateAboutPivot( Vec2 const& pivot, float rotationDeltaDegree );
 };

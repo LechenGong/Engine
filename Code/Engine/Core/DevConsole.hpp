@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <mutex>
 
 #include "Engine/Core/Rgba8.hpp"
 #include "Engine/Core/StringUtils.hpp"
@@ -16,7 +17,7 @@ struct DevConsoleConfig
 	Renderer* renderer = nullptr;
 	Camera* camera = nullptr;
 	BitmapFont* font = nullptr;
-	float linesToRender = 25.5;
+	float linesToRender = 32.5;
 	float fontAspect = 0.57f;
 	int maxCommandHistory = 100;
 	int maxLogLines = 300;
@@ -54,6 +55,8 @@ public:
 	bool IsSelecting() const { return m_selectStart != m_cursorPos; }
 	void CopyToClipBoard();
 	void PasteFromClipBoard();
+	void DisplayScrollUp();
+	void DisplayScrollDown();
 
 	void Execute( std::string const& consoleCommandText );
 	void AddLine( Rgba8 const& color, std::string const& text );
@@ -88,6 +91,8 @@ private:
 	std::vector<std::string>	m_historyInput;
 	int							m_frameNumber = 0;
 	int							m_historyIndex;
+	mutable std::mutex			m_linesMutex;
+	int							m_displayLineOffset = 0;
 };
 
 bool PrintAllCommand();

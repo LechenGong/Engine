@@ -23,3 +23,24 @@ AABB3 const AABB3::GetMoved( Vec3 const& delta ) const
 {
 	return AABB3( m_mins + delta, m_maxs + delta );
 }
+
+Vec3 const AABB3::GetCenter() const
+{
+	return (m_maxs + m_mins) * 0.5f;
+}
+/*
+
+void AABB3::StretchToIncludePoint( Vec3 const& point )
+{
+	if (GetNearestPoint( point ) == point)
+		return;
+
+	if (point.x > m_maxs.x)
+		m_maxs.x = point.x;
+	if (point.y > m_maxs.y)
+		m_maxs.y = point.y;
+	if (point.x < m_mins.x)
+		m_mins.x = point.x;
+	if (point.y < m_mins.y)
+		m_mins.y = point.y;
+}*/

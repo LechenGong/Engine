@@ -1,3 +1,8 @@
+#include <filesystem>
+#include <string.h>
+#include <errno.h>
+
+#include "Engine/Core/EngineCommon.hpp"
 #include "Engine/Core/FileUtil.hpp"
 
 bool FileReadToBuffer( std::vector<uint8_t>& outBuffer, std::string const& fileName )
@@ -54,3 +59,31 @@ bool FileWriteToBuffer( std::vector<uint8_t> const& buffer, std::string const& f
 	fclose( file );
 	return true;
 }
+
+bool FileWriteToBuffer_S( std::vector<uint8_t> const& buffer, std::string const& filePath )
+{
+	FILE* file = nullptr;
+	std::string filePathTemp = filePath + "_temp";
+	errno_t result = fopen_s( &file, filePathTemp.c_str(), "wb");
+	if (result != NULL || file == nullptr)
+	{
+		return false;
+	}
+	fwrite( buffer.data(), 1, buffer.size(), file );
+	fclose( file );
+	try
+	{
+		std::filesystem::remove( filePath );
+	}
+	catch (const std::filesystem::filesystem_error& err)
+	{
+		ERROR_AND_DIE( Stringf( "Filesystem Error: %s on %s", err.what(), filePath.c_str() ) );
+	}
+	int renameErr = std::rename( filePathTemp.c_str(), filePath.c_str() );
+	if (renameErr != 0)
+	{
+		ERROR_AND_DIE( Stringf( "Rename Error: %d on %s", renameErr, filePath.c_str() ) );
+	}
+	return true;
+}
+

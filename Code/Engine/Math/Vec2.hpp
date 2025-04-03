@@ -47,6 +47,7 @@ public:
 	float NormalizeAndGetPreviousLength();
 
 	void SetFromText( std::string text );
+	std::string ToString() const;
 
 	// Operators (const)
 	bool		operator==( const Vec2& compare ) const;		// vec2 == vec2

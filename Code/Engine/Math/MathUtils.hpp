@@ -1,5 +1,6 @@
 #pragma once
 
+//#define _USE_MATH_DEFINES
 #include <math.h>
 
 #include "Engine/Math/IntVec2.hpp"
@@ -48,7 +49,9 @@ int RoundDownToInt( float value );
 float ConvertDegreesToRadians( float degrees );
 float ConvertRadiansToDegrees( float radians );
 float CosDegrees( float degrees );
+float ACosDegrees( float value );
 float SinDegrees( float degrees );
+float ASinDegrees( float value );
 float Atan2Degrees( float y, float x );
 float GetShortestAngularDispDegrees( float startDegrees, float endDegrees );
 float GetTurnedTowardDegrees( float currentDegrees, float goalDegrees, float maxDeltaDegrees );
@@ -66,6 +69,9 @@ Vec2 const GetProjectedOnto2D( Vec2 const& vectorToProject, Vec2 const& vecToPro
 float GetProjectedLength3D( Vec3 const& vectorToProject, Vec3 const& vecToProjectOnto );
 Vec3 const GetProjectedOnto3D( Vec3 const& vectorToProject, Vec3 const& vecToProjectOnto );
 
+float GetLineSegmentsDistanceSquared3D( Vec3 const& startA, Vec3 const& endA, Vec3 const& startB, Vec3 const& endB );
+float GetLineSegmentsDistanceSquared3D( Vec3 const& startA, Vec3 const& endA, Vec3 const& startB, Vec3 const& endB, Vec3& closestPointOnA, Vec3& closestPointOnB );
+
 bool IsPointInsideDisc2D( Vec2 const& point, Vec2 const& discCenter, float discRadius );
 bool IsPointInsideAABB2D( Vec2 const& point, AABB2 const& box );
 bool IsPointInsideCapsule2D( Vec2 const& point, Vec2 const& boneStart, Vec2 const& boneEnd, float radius );
@@ -75,6 +81,8 @@ bool IsPointInsideOrientedSector2D( Vec2 const& point, Vec2 const& sectorTip, fl
 bool IsPointInsideDirectedSector2D( Vec2 const& point, Vec2 const& sectorTip, Vec2 const& sectorForwardNormal, float sectorApertureDegrees, float sectorRadius );
 bool IsPointInsideSphere3D( Vec3 const& point, Vec3 const& sphereCenter, float sphereRadius );
 bool IsPointInsideAABB3D( Vec3 const& point, AABB3 const& box );
+bool IsPointInsideCapsule3D( Vec3 const& point, Vec3 const& boneStart, Vec3 const& boneEnd, float radius );
+bool IsPointInsideHexigon3D( Vec3 const& point, Vec3 const& center, float radius );
 bool DoDiscsOverlap2D( Vec2 const& centerA, float const& radiusA, Vec2 const& centerB, float const& radiusB );
 bool DoAABBsOverlap2D( AABB2 const& aabbA, AABB2 const& aabbB );
 bool DoDiscOverlapAABB2D( AABB2 const& aabb, Vec2 const& center, float const& radius );
@@ -83,6 +91,7 @@ bool DoDiscOverlapCapsule2D( Vec2 const& discCenter, float discRadius, Vec2 cons
 bool DoDiscOverlapDirectedSector2D( Vec2 const& discCenter, float discRadius, Vec2 const& sectorTip, float sectorForwardDegrees, float sectorApertureDegrees, float sectorRadius );
 bool DoDiscOverlapOrientedSector2D( Vec2 const& discCenter, float discRadius, Vec2 const& sectorTip, Vec2 const& sectorForwardNormal, float sectorApertureDegrees, float sectorRadius );
 bool DoSpheresOverlap3D( Vec3 const& centerA, float const& radiusA, Vec3 const& centerB, float const& radiusB );
+bool DoSpheresOverlap3D( Vec3 const& centerA, float const& radiusA, Vec3 const& centerB, float const& radiusB, Vec3& out_mtv_XY );
 bool DoAABBsOverlap3D( AABB3 const& aabbA, AABB3 const& aabbB );
 bool DoZCylindersOverlap3D( Vec3 const& cylinderAStart, float cylinderAHeight, float cylinderARadius, Vec3 const& cylinderBStart, float cylinderBHeight, float cylinderBRadius );
 bool DoSphereAndAABBOverlap3D( Vec3 const& center, float const& radius, AABB3 const& aabb );
@@ -92,6 +101,14 @@ bool DoPlaneOverlapZCylinder3D( Plane const& plane, Vec3 const& cylinderStart, f
 bool DoPlaneOverlapAABB3D( Plane const& plane, AABB3 const& aabb );
 bool DoPlaneOverlapSphere3D( Plane const& plane, Vec3 const& center, float radius );
 bool DoPlaneOverlapOBB3D( Plane const& plane, OBB3 const& obb );
+bool DoOBBsOverlap3D( OBB3 const& obbA, OBB3 const& obbB );
+bool DoOBBsOverlap3D( OBB3 const& obbA, OBB3 const& obbB, Vec3& out_mtv );
+bool DoCapsuleOverlapOBB3D( Vec3 const& boneStart, Vec3 const& boneEnd, float radius, OBB3 const& obb );
+bool DoCapsuleOverlapOBB3D( Vec3 const& boneStart, Vec3 const& boneEnd, float radius, OBB3 const& obb, Vec3& out_mtv );
+bool DoCapsulesOverlap3D( Vec3 const& boneStartA, Vec3 const& boneEndA, float radiusA, Vec3 const& boneStartB, Vec3 const& boneEndB, float radiusB );
+bool DoCapsulesOverlap3D( Vec3 const& boneStartA, Vec3 const& boneEndA, float radiusA, Vec3 const& boneStartB, Vec3 const& boneEndB, float radiusB, Vec3& out_mtv_XY );
+bool DoCapsuleOverlapSphere3D( Vec3 const& boneStart, Vec3 const& boneEnd, float capsuleRadius, Vec3 const& center, float sphereRadius );
+bool DoCapsuleOverlapSphere3D( Vec3 const& boneStart, Vec3 const& boneEnd, float capsuleRadius, Vec3 const& center, float sphereRadius, Vec3& out_mtv_XY );
 Vec2 const GetNearestPointOnDisc2D( Vec2 const& referencePos, Vec2 const& discCenter, float discRadius );
 Vec2 const GetNearestPointOnAABB2D( Vec2 const& referencePos, AABB2 const& box );
 Vec2 const GetNearestPointOnInfiniteLine2D( Vec2 const& referencePos, Vec2 const& pointOnLine, Vec2 const& anotherPointOnLine );
@@ -100,7 +117,10 @@ Vec2 const GetNearestPointOnCapsule2D( Vec2 const& referencePos, Vec2 const& bon
 Vec2 const GetNearestPointOnOBB2D( Vec2 const& referencePos, OBB2 const& box );
 Vec3 const GetNearestPointOnSphere3D( Vec3 const& referencePos, Vec3 const& sphereCenter, float sphereRadius );
 Vec3 const GetNearestPointOnAABB3D( Vec3 const& referencePos, AABB3 const& box );
+Vec3 const GetNearestPointOnLineSegment3D( Vec3 const& referencePos, Vec3 const& lineSegStart, Vec3 const& lineSegEnd );
 Vec3 const GetNearestPointOnZCylinder3D( Vec3 const& referencePos, Vec3 const& cylinderStart, float cylinderHeight, float cylinderRadius );
+
+Vec3 const GetNearestPointOnOBBToLineSegment3D( Vec3 const& lineSegStart, Vec3 const& lineSegEnd, OBB3 const& obb );
 
 Mat44 const GetLookAtMatrix( Vec3 forwardVec );
 Mat44 const GetBillboardMatrix( BillboardType billboardType, Mat44 const& cameraMatrix, const Vec3& billboardPosition, const Vec2& billboardScale );
@@ -109,6 +129,9 @@ bool PushDiscOutOfFixedPoint2D( Vec2 & mobileDiscCenter, float discRadius , Vec2
 bool PushDiscOutOfFixedDisc2D( Vec2 & mobileDiscCenter, float mobileDiscRadius, Vec2 const& fixedDiscCenter, float fixedDiscRadius );
 bool PushDiscsOutOfEachOther2D( Vec2& aCenter, float aRadius, Vec2& bCenter, float bRadius );
 bool PushDiscOutOfFixedAABB2D( Vec2& mobileDiscCenter, float discRadius, AABB2 const& fixedBox );
+
+bool PushOBBsOutOfEachOther3D( OBB3& obbA, OBB3& obbB );
+bool PushOBBsOutOfFixedOBBs3D( OBB3& mobileOBB3, OBB3 const& FixedOBB3 );
 
 bool BounceDiscsOffPoint( Vec2& center, float radius, Vec2& velocity, Vec2 const& point, float elasticity );
 bool BounceDiscsOffEachOther( Vec2& centerA, float radiusA, Vec2& velocityA, Vec2& centerB, float radiusB, Vec2& velocityB, float elasticity );
@@ -153,3 +176,5 @@ float Hesitate3( float t );
 float Hesitate5( float t );
 
 float CustomFunkyEasingFunction( float t );
+
+void xyzToZyx( float x, float y, float z, float& zyx_z, float& zyx_y, float& zyx_x );

@@ -8,6 +8,8 @@
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3dcompiler.lib")
 
+#include <filesystem>
+
 #include "Engine/Renderer/Renderer.hpp"
 #include "Engine/Renderer/Shader.hpp"
 #include "Engine/Core/EngineCommon.hpp"
@@ -18,18 +20,16 @@
 #include "Engine/Renderer/IndexBuffer.hpp"
 #include "Engine/Renderer/ConstantBuffer.hpp"
 #include "Engine/Renderer/DefaultShader.hpp"
+#include "Engine/Core/VertexUtils.hpp"
+#include "Engine/Model/Vertex_Anim.hpp"
 #include "Engine/Core/Image.hpp"
 #include "Engine/Math/Mat44.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #include "ThirdParty/stbi/stb_image.h"
+#include "Engine/Model/ModelUtility.hpp"
 
-struct LightingConstants
-{
-	float sunDirection[3];
-	float sunIntensity;
-	float ambientIntensity;
-	float placeHolder[3] = { 0.f, 0.f, 0.f };
-};
+Renderer* g_theRenderer = nullptr;
+
 static int const k_lightingConstantSlot = 1;
 
 struct CameraConstants
@@ -45,6 +45,30 @@ struct ModelConstants
 	float modelColor[4];
 };
 static int const k_modelConstantSlot = 3;
+
+struct JointConstants
+{
+	Mat44 globalBineposeInverse[200];
+	Mat44 currentGlobalTransform[200];
+};
+static int const k_jointConstantSlot = 4;
+
+struct BlurSample
+{
+	Vec2 Offset;
+	float Weight;
+	int Padding;
+};
+static const int k_blurMaxSample = 64;
+
+struct BlurConstants
+{
+	Vec2 TexelSize;
+	float LerpT;
+	int NumSamples;
+	BlurSample Samples[k_blurMaxSample];
+};
+static const int k_blurConstantsSlot = 5;
 
 Renderer::Renderer() {}
 
@@ -164,6 +188,23 @@ void Renderer::Startup()
 	}
 
 	rasterizerDesc = {};
+	rasterizerDesc.FillMode = D3D11_FILL_SOLID;
+	rasterizerDesc.CullMode = D3D11_CULL_FRONT;
+	rasterizerDesc.FrontCounterClockwise = true;
+	rasterizerDesc.DepthBias = 0;
+	rasterizerDesc.DepthBiasClamp = 0;
+	rasterizerDesc.SlopeScaledDepthBias = 0.0f;
+	rasterizerDesc.DepthClipEnable = true;
+	rasterizerDesc.ScissorEnable = false;
+	rasterizerDesc.MultisampleEnable = false;
+	rasterizerDesc.AntialiasedLineEnable = true;
+	hr = m_device->CreateRasterizerState( &rasterizerDesc, &m_rasterizerStates[(int)RasterizerMode::SOLID_CULL_FRONT] );
+	if (!SUCCEEDED( hr ))
+	{
+		ERROR_AND_DIE( "Could not create rasterizer state." );
+	}
+
+	rasterizerDesc = {};
 	rasterizerDesc.FillMode = D3D11_FILL_WIREFRAME;
 	rasterizerDesc.CullMode = D3D11_CULL_NONE;
 	rasterizerDesc.FrontCounterClockwise = true;
@@ -204,6 +245,8 @@ void Renderer::Startup()
 	m_lightingCBO = CreateConstantBuffer( sizeof( LightingConstants ) );
 	m_cameraCBO = CreateConstantBuffer( sizeof( CameraConstants ) );
 	m_modelCBO = CreateConstantBuffer( sizeof( ModelConstants ) );
+	m_blurCBO = CreateConstantBuffer( sizeof( BlurConstants ) );
+	m_jointCBO = CreateConstantBuffer( sizeof( JointConstants ) );
 
 	// Create Opaque Blend State
 	D3D11_BLEND_DESC blendDesc = { };
@@ -286,6 +329,17 @@ void Renderer::Startup()
 		ERROR_AND_DIE( "Could not create SamplerMode:BILINEAR_WARP" );
 	}
 
+	samplerDesc = {};
+	samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+	hr = m_device->CreateSamplerState( &samplerDesc, &m_samplerStates[(int)(SamplerMode::BILINEAR_CLAMP)] );
+	if (!SUCCEEDED( hr ))
+	{
+		ERROR_AND_DIE( "Could not create SamplerMode:BILINEAR_CLAMP" );
+	}
+
 	SetSamplerMode( SamplerMode::POINT_CLAMP );
 	m_deviceContext->PSSetSamplers( 0, 1, &m_samplerState );
 
@@ -331,12 +385,46 @@ void Renderer::Startup()
 
 	SetDepthMode( DepthMode::ENABLED );
 	m_deviceContext->OMSetDepthStencilState( m_depthStencilState, 0 );
+
+	m_fullScreenQuadVBO_PCU = CreateVertexBuffer( sizeof( Vertex_PCU ) * 6 );
+
+	m_emissiveRenderTexture = CreateRenderTexture( m_config.m_window->GetClientDimensions(), "EmissiveTexture" );
+	
+	m_emissiveBlurDownTexture.resize( k_blurDownTextureCount, nullptr );
+	m_emissiveBlurUpTexture.resize( k_blurUpTextureCount, nullptr );
+
+	int currentHeight = m_config.m_window->GetClientDimensions().y;
+	int currentWidth;
+
+	for (int i = 0; i < k_blurDownTextureCount; i++)
+	{
+		currentHeight = int( float( currentHeight ) * 0.5f );
+		currentWidth = int( float( currentHeight * m_config.m_window->GetAspect() + 0.5f ) );
+
+		IntVec2 newDimension = IntVec2( int( currentWidth ), int( currentHeight ) );
+		m_emissiveBlurDownTexture[i] = CreateRenderTexture( newDimension, "EmissiveBlurDownTexture" );
+	}
+	currentHeight = m_config.m_window->GetClientDimensions().y;
+	for (int i = 0; i < k_blurUpTextureCount; i++)
+	{
+		currentHeight = int( float( currentHeight ) * 0.5f );
+		currentWidth = int( float( currentHeight * m_config.m_window->GetAspect() ) + 0.5f );
+		IntVec2 newDimension = IntVec2( int( currentWidth ), int( currentHeight ) );
+		m_emissiveBlurUpTexture[i] = CreateRenderTexture( newDimension, "EmissiveBlurUpTexture" );
+	}
 }
 
 void Renderer::BeginFrame()
 {
 	// Set Render Target
-	m_deviceContext->OMSetRenderTargets( 1, &m_renderTargetView, m_depthStencilView );
+	//m_deviceContext->OMSetRenderTargets( 1, &m_renderTargetView, m_depthStencilView );
+
+	ID3D11RenderTargetView* RTVs[]
+	{
+		m_renderTargetView,
+		m_emissiveRenderTexture->m_renderTargetView
+	};
+	m_deviceContext->OMSetRenderTargets( 2, RTVs, m_depthStencilView );
 }
 
 void Renderer::EndFrame()
@@ -358,11 +446,29 @@ void Renderer::Shutdown()
 		loadedShader = nullptr;
 	}
 
+	for (int i = 0; i < k_blurDownTextureCount; i++)
+	{
+		delete m_emissiveBlurDownTexture[i];
+		m_emissiveBlurDownTexture[i] = nullptr;
+	}
+	for (int i = 0; i < k_blurUpTextureCount; i++)
+	{
+		delete m_emissiveBlurUpTexture[i];
+		m_emissiveBlurUpTexture[i] = nullptr;
+	}
+
+	delete m_emissiveRenderTexture;
+
 	delete m_immediateVBO;
 	m_immediateVBO = nullptr;
 
 	delete m_immediateIBO;
 	m_immediateIBO = nullptr;
+
+	delete m_fullScreenQuadVBO_PCU;
+
+	delete m_blurCBO;
+	m_blurCBO = nullptr;
 
 	delete m_lightingCBO;
 	m_lightingCBO = nullptr;
@@ -372,6 +478,9 @@ void Renderer::Shutdown()
 
 	delete m_modelCBO;
 	m_modelCBO = nullptr;
+
+	delete m_jointCBO;
+	m_jointCBO = nullptr;
 
 	for (ID3D11BlendState* blendMode : m_blendStates)
 	{
@@ -434,11 +543,24 @@ void Renderer::DrawVertexArray( std::vector<Vertex_PCU> const vertexArray )
 	DrawVertexBuffer( m_immediateVBO, (int)(vertexArray.size()), (int)VertexType::VERTEX_PCU );
 }
 
+void Renderer::DrawVertexArray( std::vector<Vertex_PCU> const vertexArray, std::vector<unsigned int> const IndexArray )
+{
+	CopyCPUToGPU( vertexArray.data(), vertexArray.size(), m_immediateVBO );
+	CopyCPUToGPU( IndexArray.data(), IndexArray.size(), m_immediateIBO );
+	DrawVertexAndIndexBuffer( m_immediateVBO, m_immediateIBO, (int)IndexArray.size(), VertexType::VERTEX_PCU );
+}
+
 void Renderer::DrawVertexArray( VertexBuffer* vertexBuffer, IndexBuffer* indexBuffer, std::vector<Vertex_PCU> const vertexArray, std::vector<unsigned int> const indexArray )
 {
 	CopyCPUToGPU( vertexArray.data(), vertexArray.size(), vertexBuffer );
 	CopyCPUToGPU( indexArray.data(), indexArray.size(), indexBuffer );
 	DrawVertexAndIndexBuffer( vertexBuffer, indexBuffer, (int)(indexArray.size()), VertexType::VERTEX_PCU );
+}
+
+void Renderer::DrawVertexArray( std::vector<Vertex_PCUTBN> const vertexArray, std::vector<unsigned int> const indexArray )
+{
+	CopyCPUToGPU( vertexArray.data(), vertexArray.size(), m_immediateVBO, indexArray.data(), indexArray.size(), m_immediateIBO );
+	DrawVertexAndIndexBuffer( m_immediateVBO, m_immediateIBO, (int)(indexArray.size()), VertexType::VERTEX_PCUTBN );
 }
 
 void Renderer::DrawVertexArray( VertexBuffer* vertexBuffer, IndexBuffer* indexBuffer, std::vector<Vertex_PCUTBN> const vertexArray, std::vector<unsigned int> const indexArray )
@@ -450,11 +572,21 @@ void Renderer::DrawVertexArray( VertexBuffer* vertexBuffer, IndexBuffer* indexBu
 void Renderer::ClearScreen( Rgba8 const& defaultColor )
 {
 	// Clear the screen
-	//Rgba8 clearColor( 127, 127, 127, 255 );
 	float colorAsFloats[4];
-	//clearColor.GetAsFloats( colorAsFloats );
 	defaultColor.GetAsFloats( colorAsFloats );
-	m_deviceContext->ClearRenderTargetView( m_renderTargetView, colorAsFloats );
+ 	m_deviceContext->ClearRenderTargetView( m_renderTargetView, colorAsFloats );
+// 	m_deviceContext->ClearDepthStencilView( m_depthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0 );
+
+	float blackAsFloats[4] = { 0.f, 0.f, 0.f, 1.f };
+	m_deviceContext->ClearRenderTargetView( m_emissiveRenderTexture->m_renderTargetView, blackAsFloats );
+	for (int i = 0; i < m_emissiveBlurDownTexture.size(); i++)
+	{
+		m_deviceContext->ClearRenderTargetView( m_emissiveBlurDownTexture[i]->m_renderTargetView, blackAsFloats);
+	}
+	for (int i = 0; i < m_emissiveBlurUpTexture.size(); i++)
+	{
+		m_deviceContext->ClearRenderTargetView( m_emissiveBlurUpTexture[i]->m_renderTargetView, blackAsFloats );
+	}
 	m_deviceContext->ClearDepthStencilView( m_depthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0 );
 }
 
@@ -564,7 +696,7 @@ Shader* Renderer::CreateShader( char const* shaderName, VertexType vertexType )
  			ERROR_AND_DIE( "Could not create vertex layout" );
  		}
  	}
- 	else
+ 	else if (vertexType == VertexType::VERTEX_PCUTBN)
  	{
  		D3D11_INPUT_ELEMENT_DESC inputElementDesc[] = {
  			{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
@@ -587,6 +719,31 @@ Shader* Renderer::CreateShader( char const* shaderName, VertexType vertexType )
  			ERROR_AND_DIE( "Could not create vertex layout" );
  		}
  	}
+	else
+	{
+		D3D11_INPUT_ELEMENT_DESC inputElementDesc[] = {
+			{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
+			{"COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
+			{"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
+			{"TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
+			{"BITANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
+			{"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
+			{"JOINTINDEX", 0, DXGI_FORMAT_R32G32B32A32_UINT, 1, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
+			{"JOINTWEIGHT", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0}
+		};
+
+		UINT numElements = ARRAYSIZE( inputElementDesc );
+		hr = m_device->CreateInputLayout(
+			inputElementDesc, numElements,
+			vertexShaderByteCode.data(),
+			vertexShaderByteCode.size(),
+			&newShader->m_inputLayoutForVertex
+		);
+		if (!SUCCEEDED( hr ))
+		{
+			ERROR_AND_DIE( "Could not create vertex layout" );
+		}
+	}
 	m_loadedShaders.push_back( newShader );
  	m_currentShader = newShader;
  	return newShader;
@@ -746,6 +903,48 @@ void Renderer::CopyCPUToGPU( void const* dataV, size_t const sizeV, VertexBuffer
 	m_deviceContext->Map( vbo->m_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &resource );
 	memcpy( resource.pData, dataV, sizeByteV );
 	m_deviceContext->Unmap( vbo->m_buffer, 0 );
+	
+	size_t sizeByteI = sizeI * sizeof( unsigned int );
+	if (sizeByteI > ibo->m_size)
+	{
+		delete ibo;
+		ibo = CreateIndexBuffer( sizeByteI );
+	}
+
+	//D3D11_MAPPED_SUBRESOURCE resource;
+	m_deviceContext->Map( ibo->m_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &resource );
+	memcpy( resource.pData, dataI, sizeByteI );
+	m_deviceContext->Unmap( ibo->m_buffer, 0 );
+}
+
+void Renderer::CopyCPUToGPU( void const* dataV, size_t const sizeV, VertexBuffer*& vbo,
+	void const* dataV2, size_t const sizeV2, VertexBuffer*& vbo2,
+	void const* dataI, size_t const sizeI, IndexBuffer*& ibo )
+{
+	// Copy first vertex buffer (vertexes)
+	size_t sizeByteV = sizeV * sizeof( Vertex_PCUTBN );
+	if (sizeByteV > vbo->m_size)
+	{
+		delete vbo;
+		vbo = CreateVertexBuffer( sizeByteV );
+	}
+
+	D3D11_MAPPED_SUBRESOURCE resource;
+	m_deviceContext->Map( vbo->m_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &resource );
+	memcpy( resource.pData, dataV, sizeByteV );
+	m_deviceContext->Unmap( vbo->m_buffer, 0 );
+
+	// Copy second vertex buffer (joint influences)
+	size_t sizeByteV2 = sizeV2 * sizeof( Vertex_Anim );
+	if (sizeByteV2 > vbo2->m_size)
+	{
+		delete vbo2;
+		vbo2 = CreateVertexBuffer( sizeByteV2 );
+	}
+
+	m_deviceContext->Map( vbo2->m_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &resource );
+	memcpy( resource.pData, dataV2, sizeByteV2 );
+	m_deviceContext->Unmap( vbo2->m_buffer, 0 );
 
 	size_t sizeByteI = sizeI * sizeof( unsigned int );
 	if (sizeByteI > ibo->m_size)
@@ -773,7 +972,28 @@ void Renderer::BindVertexBuffer( VertexBuffer* vbo, VertexType vertexType )
 	}
 	UINT startOffset = 0;
 	m_deviceContext->IASetVertexBuffers( 0, 1, &vbo->m_buffer, &stride, &startOffset );
-	m_deviceContext->IASetPrimitiveTopology( D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
+	if (vbo->m_isLinePrimitive)
+	{
+		m_deviceContext->IASetPrimitiveTopology( D3D11_PRIMITIVE_TOPOLOGY_LINELIST );
+	}
+	else
+	{
+		m_deviceContext->IASetPrimitiveTopology( D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
+	}
+}
+
+void Renderer::BindVertexBuffer( VertexBuffer* vbo, VertexBuffer* vbo2 )
+{
+//	ID3D11Buffer* buffers[2] = { vbo->m_buffer, vbo2->m_buffer };
+// 
+ 	UINT strides[2] = { sizeof( Vertex_PCUTBN ), sizeof( Vertex_Anim ) };
+// 
+ 	UINT startOffsets[2] = { 0, 0 };
+// 
+// 	m_deviceContext->IASetVertexBuffers( 0, 2, buffers, strides, startOffsets );
+
+	m_deviceContext->IASetVertexBuffers( 0, 1, &vbo->m_buffer, &strides[0], &startOffsets[0] );
+	m_deviceContext->IASetVertexBuffers( 1, 1, &vbo2->m_buffer, &strides[1], &startOffsets[1] );
 }
 
 void Renderer::BindIndexBuffer( IndexBuffer* ibo )
@@ -831,6 +1051,14 @@ void Renderer::DrawVertexAndIndexBuffer( VertexBuffer* vbo, IndexBuffer* ibo, in
 	m_deviceContext->DrawIndexed( indexCount, 0, 0 );	
 }
 
+void Renderer::DrawVertexAndIndexBuffer( VertexBuffer* vbo, VertexBuffer* vbo2, IndexBuffer* ibo, int indexCount )
+{
+	BindVertexBuffer( vbo, vbo2 );
+	BindIndexBuffer( ibo );
+	SetStateIfChanged();
+	m_deviceContext->DrawIndexed( indexCount, 0, 0 );
+}
+
 void Renderer::SetStateIfChanged()
 {
 	if (m_blendState != m_blendStates[(int)(m_desiredBlendMode)])
@@ -859,7 +1087,6 @@ void Renderer::SetStateIfChanged()
 	}
 }
 
-
 void Renderer::SetBlendMode( BlendMode blendMode )
 {
 	m_desiredBlendMode = blendMode;
@@ -870,39 +1097,281 @@ void Renderer::SetRasterizerState( RasterizerMode rasterizerMode )
 	m_desiredRasterizerMode = rasterizerMode;
 }
 
+void Renderer::RenderEmissive()
+{
+	std::vector<Vertex_PCU> vertsScreenQuad;
+	AddVertsForAABB2D( vertsScreenQuad, AABB2( Vec2( -1.f, 1.f ), Vec2( 1.f, -1.f ) ), Rgba8::WHITE );
+
+	ID3D11RenderTargetView* nullRTVs[] = { nullptr, nullptr };
+	ID3D11ShaderResourceView* nullSRVs[] = { nullptr, nullptr };
+	m_deviceContext->PSSetShaderResources( 0, 2, nullSRVs );
+	m_deviceContext->OMSetRenderTargets( 2, nullRTVs, nullptr );
+	
+	SetModelConstants();
+	SetDepthMode( DepthMode::DISABLED );
+	SetBlendMode( BlendMode::OPAQUE );
+	SetSamplerMode( SamplerMode::BILINEAR_CLAMP );
+	SetRasterizerState( RasterizerMode::SOLID_CULL_FRONT );
+
+	BlurConstants blurConstants;
+	blurConstants.TexelSize.x = 1.f / (float)m_config.m_window->GetClientDimensions().x;
+	blurConstants.TexelSize.y = 1.f / (float)m_config.m_window->GetClientDimensions().y;
+	blurConstants.LerpT = 1;
+	blurConstants.NumSamples = 13;
+	blurConstants.Samples[0].Offset = Vec2( -2.f, -2.f );
+	blurConstants.Samples[1].Offset = Vec2( -2.f, 0.f );
+	blurConstants.Samples[2].Offset = Vec2( -2.f, 2.f );
+	blurConstants.Samples[3].Offset = Vec2( -1.f, -1.f );
+	blurConstants.Samples[4].Offset = Vec2( -1.f, 1.f );
+	blurConstants.Samples[5].Offset = Vec2( 0.f, -2.f );
+	blurConstants.Samples[6].Offset = Vec2( 0.f, 0.f );
+	blurConstants.Samples[7].Offset = Vec2( 0.f, 2.f );
+	blurConstants.Samples[8].Offset = Vec2( 1.f, -1.f );
+	blurConstants.Samples[9].Offset = Vec2( 1.f, 1.f );
+	blurConstants.Samples[10].Offset = Vec2( 2.f, -2.f );
+	blurConstants.Samples[11].Offset = Vec2( 2.f, 0.f );
+	blurConstants.Samples[12].Offset = Vec2( 2.f, 2.f );
+	blurConstants.Samples[0].Weight = 0.0323f;
+	blurConstants.Samples[1].Weight = 0.0645f;
+	blurConstants.Samples[2].Weight = 0.0323f;
+	blurConstants.Samples[3].Weight = 0.1290f;
+	blurConstants.Samples[4].Weight = 0.1290f;
+	blurConstants.Samples[5].Weight = 0.0645f;
+	blurConstants.Samples[6].Weight = 0.0968f;
+	blurConstants.Samples[7].Weight = 0.0645f;
+	blurConstants.Samples[8].Weight = 0.1290f;
+	blurConstants.Samples[9].Weight = 0.1290f;
+	blurConstants.Samples[10].Weight = 0.0323f;
+	blurConstants.Samples[11].Weight = 0.0645f;
+	blurConstants.Samples[12].Weight = 0.0323f;	
+	
+	CopyCPUToGPU( &blurConstants, sizeof( BlurConstants ), m_blurCBO );
+	BindConstantBuffer( k_blurConstantsSlot, m_blurCBO );
+
+	D3D11_VIEWPORT viewport = { 0 };
+	viewport.TopLeftX = 0.0f;
+	viewport.TopLeftY = 0.0f;
+	viewport.Width = (float)m_emissiveBlurDownTexture[0]->GetDimensions().x;
+	viewport.Height = (float)m_emissiveBlurDownTexture[0]->GetDimensions().y;
+	viewport.MinDepth = 0.0f;
+	viewport.MaxDepth = 1.0f;
+	m_deviceContext->RSSetViewports( 1, &viewport );
+
+	BindShader( CreateShader( "Data/Shaders/BlurDown.hlsl", VertexType::VERTEX_PCU ) );
+	m_deviceContext->PSSetShaderResources( 0, 2, nullSRVs );
+	m_deviceContext->OMSetRenderTargets( 1, &m_emissiveBlurDownTexture[0]->m_renderTargetView, nullptr );
+	BindTexture( m_emissiveRenderTexture );
+	DrawVertexArray( vertsScreenQuad );
+
+	for (int i = 1; i < k_blurDownTextureCount; i++)
+	{
+ 		viewport = { 0 };
+ 		viewport.TopLeftX = 0.0f;
+ 		viewport.TopLeftY = 0.0f;
+		viewport.Width = (float)m_emissiveBlurDownTexture[i]->GetDimensions().x;
+		viewport.Height = (float)m_emissiveBlurDownTexture[i]->GetDimensions().y;
+ 		viewport.MinDepth = 0.0f;
+ 		viewport.MaxDepth = 1.0f;
+ 		m_deviceContext->RSSetViewports( 1, &viewport );
+		blurConstants.TexelSize.x = 1.f / (float)m_emissiveBlurDownTexture[i - 1]->GetDimensions().x;
+		blurConstants.TexelSize.y = 1.f / (float)m_emissiveBlurDownTexture[i - 1]->GetDimensions().y;
+		CopyCPUToGPU( &blurConstants, sizeof( BlurConstants ), m_blurCBO );
+		BindConstantBuffer( k_blurConstantsSlot, m_blurCBO );
+		m_deviceContext->PSSetShaderResources( 0, 2, nullSRVs );
+		m_deviceContext->OMSetRenderTargets( 1, &m_emissiveBlurDownTexture[i]->m_renderTargetView, nullptr );
+		BindTexture( m_emissiveBlurDownTexture[i - 1] );
+		DrawVertexArray( vertsScreenQuad );	
+	}
+
+	blurConstants.TexelSize.x = 1.f / m_emissiveBlurDownTexture[k_blurUpTextureCount - 1]->GetDimensions().x;
+	blurConstants.TexelSize.y = 1.f / m_emissiveBlurDownTexture[k_blurUpTextureCount - 1]->GetDimensions().y;
+	blurConstants.LerpT = 0.85f;
+	blurConstants.NumSamples = 9;
+	blurConstants.Samples[0].Offset = Vec2( -1.f, -1.f );
+	blurConstants.Samples[1].Offset = Vec2( -1.f, 0.f );
+	blurConstants.Samples[2].Offset = Vec2( -1.f, 1.f );
+	blurConstants.Samples[3].Offset = Vec2( 0.f, -1.f );
+	blurConstants.Samples[4].Offset = Vec2( 0.f, 0.f );
+	blurConstants.Samples[5].Offset = Vec2( 0.f, 1.f );
+	blurConstants.Samples[6].Offset = Vec2( 1.f, -1.f );
+	blurConstants.Samples[7].Offset = Vec2( 1.f, 0.f );
+	blurConstants.Samples[8].Offset = Vec2( 1.f, 1.f );
+	blurConstants.Samples[0].Weight = 0.0625f;
+	blurConstants.Samples[1].Weight = 0.1250f;
+	blurConstants.Samples[2].Weight = 0.0625f;
+	blurConstants.Samples[3].Weight = 0.1250f;
+	blurConstants.Samples[4].Weight = 0.2500f;
+	blurConstants.Samples[5].Weight = 0.1250f;
+	blurConstants.Samples[6].Weight = 0.0625f;
+	blurConstants.Samples[7].Weight = 0.1250f;
+	blurConstants.Samples[8].Weight = 0.0625f;
+
+	BindShader( CreateShader( "Data/Shaders/BlurUp.hlsl", VertexType::VERTEX_PCU ) );
+
+// 	CopyCPUToGPU( &blurConstants, sizeof( BlurConstants ), m_blurCBO );
+// 	BindConstantBuffer( k_blurConstantsSlot, m_blurCBO );
+// 
+// 	m_deviceContext->OMSetRenderTargets( 1, &m_emissiveBlurUpTexture[k_blurUpTextureCount - 1]->m_renderTargetView, nullptr );
+// 
+// 	BindTexture( m_emissiveBlurDownTexture[k_blurDownTextureCount - 1], 0 );
+// 	BindTexture( m_emissiveBlurDownTexture[k_blurDownTextureCount - 1], 1 );
+
+	for (int i = k_blurUpTextureCount - 1; i >= 0; i--)
+	{
+		viewport = { 0 };
+		viewport.TopLeftX = 0.0f;
+		viewport.TopLeftY = 0.0f;
+		viewport.Width = (float)m_emissiveBlurUpTexture[i]->GetDimensions().x;
+		viewport.Height = (float)m_emissiveBlurUpTexture[i]->GetDimensions().y;
+		viewport.MinDepth = 0.0f;
+		viewport.MaxDepth = 1.0f;
+		m_deviceContext->RSSetViewports( 1, &viewport );
+		blurConstants.TexelSize.x = 1.f / (float)((i == k_blurUpTextureCount - 1) ? m_emissiveBlurDownTexture[i + 1] : m_emissiveBlurUpTexture[i + 1])->GetDimensions().x;
+		blurConstants.TexelSize.y = 1.f / (float)((i == k_blurUpTextureCount - 1) ? m_emissiveBlurDownTexture[i + 1] : m_emissiveBlurUpTexture[i + 1])->GetDimensions().y;
+		CopyCPUToGPU( &blurConstants, sizeof( BlurConstants ), m_blurCBO );
+		BindConstantBuffer( k_blurConstantsSlot, m_blurCBO );
+		m_deviceContext->PSSetShaderResources( 0, 2, nullSRVs );
+		m_deviceContext->OMSetRenderTargets( 1, &m_emissiveBlurUpTexture[i]->m_renderTargetView, nullptr );
+		BindTexture( m_emissiveBlurDownTexture[i], 0 );
+		BindTexture( (i == k_blurUpTextureCount - 1) ? m_emissiveBlurDownTexture[i + 1] : m_emissiveBlurUpTexture[i + 1], 1 );
+		DrawVertexArray( vertsScreenQuad );
+	}
+
+	viewport = { 0 };
+	viewport.TopLeftX = 0.0f;
+	viewport.TopLeftY = 0.0f;
+	viewport.Width = (float)m_emissiveBlurUpTexture[0]->GetDimensions().x;
+	viewport.Height = (float)m_emissiveBlurUpTexture[0]->GetDimensions().y;
+	viewport.MinDepth = 0.0f;
+	viewport.MaxDepth = 1.0f;
+	m_deviceContext->RSSetViewports( 1, &viewport );
+	blurConstants.TexelSize.x = 1.f / m_emissiveBlurDownTexture[k_blurUpTextureCount - 1]->GetDimensions().x;
+	blurConstants.TexelSize.y = 1.f / m_emissiveBlurDownTexture[k_blurUpTextureCount - 1]->GetDimensions().y;
+	CopyCPUToGPU( &blurConstants, sizeof( BlurConstants ), m_blurCBO );
+	BindConstantBuffer( k_blurConstantsSlot, m_blurCBO );
+	m_deviceContext->PSSetShaderResources( 0, 2, nullSRVs );
+	m_deviceContext->OMSetRenderTargets( 1, &m_emissiveBlurDownTexture[0]->m_renderTargetView, nullptr );
+	BindTexture( m_emissiveRenderTexture, 0 );
+	BindTexture( m_emissiveBlurUpTexture[0], 1 );
+	DrawVertexArray( vertsScreenQuad );
+
+	BindShader( CreateShader( "Data/Shaders/Composite.hlsl", VertexType::VERTEX_PCU ) );
+
+ 	viewport = { 0 };
+ 	viewport.TopLeftX = 0.0f;
+ 	viewport.TopLeftY = 0.0f;
+ 	viewport.Width = (float)m_config.m_window->GetClientDimensions().x;
+ 	viewport.Height = (float)m_config.m_window->GetClientDimensions().y;
+ 	viewport.MinDepth = 0.0f;
+ 	viewport.MaxDepth = 1.0f;
+ 	m_deviceContext->RSSetViewports( 1, &viewport );
+	m_deviceContext->PSSetShaderResources( 0, 2, nullSRVs );
+	m_deviceContext->OMSetRenderTargets( 1, &m_renderTargetView, m_depthStencilView );
+	BindTexture( m_emissiveBlurUpTexture[0]);
+	SetBlendMode( BlendMode::ADDITIVE );
+	DrawVertexArray( vertsScreenQuad );
+
+	ID3D11RenderTargetView* RTVs[] =
+	{
+		m_renderTargetView,
+		m_emissiveRenderTexture->m_renderTargetView,
+	};
+	m_deviceContext->OMSetRenderTargets( 2, RTVs, m_depthStencilView );
+
+	SetModelConstants();
+	SetDepthMode( DepthMode::ENABLED );
+	SetBlendMode( BlendMode::OPAQUE );
+	SetSamplerMode( SamplerMode::POINT_CLAMP );
+	SetRasterizerState( RasterizerMode::SOLID_CULL_BACK );
+	BindShader( nullptr );
+	BindTexture( nullptr );
+}
+/*
 Texture* Renderer::CreateTextureFromImage( Image const& image, char const* name )
 {
 	Texture* newTexture = new Texture;
 	newTexture->m_dimensions = image.GetDimensions();
 	newTexture->m_name = name;
-	D3D11_TEXTURE2D_DESC textureDesc = { };
+
+	D3D11_TEXTURE2D_DESC textureDesc = {};
 	textureDesc.Width = image.GetDimensions().x;
 	textureDesc.Height = image.GetDimensions().y;
-	textureDesc.MipLevels = 1;
+	textureDesc.MipLevels = 0;
 	textureDesc.ArraySize = 1;
 	textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	textureDesc.SampleDesc.Count = 1;
-	textureDesc.Usage = D3D11_USAGE_IMMUTABLE;
-	textureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+	textureDesc.Usage = D3D11_USAGE_DEFAULT;
+	textureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+	textureDesc.MiscFlags = D3D11_RESOURCE_MISC_GENERATE_MIPS;
 
-	D3D11_SUBRESOURCE_DATA textureData;
-	textureData.pSysMem = image.GetRawData();
-	textureData.SysMemPitch = 4 * image.GetDimensions().x;
-
-	HRESULT hr = m_device->CreateTexture2D( &textureDesc, &textureData, &newTexture->m_texture );
-	if (!SUCCEEDED( hr ))
+	HRESULT hr = m_device->CreateTexture2D( &textureDesc, nullptr, &newTexture->m_texture );
+	if (FAILED( hr ))
 	{
 		ERROR_AND_DIE( Stringf( "Could not create texture from image for file \"%s\".", image.GetImageFilePath().c_str() ) );
 	}
 
-	hr = m_device->CreateShaderResourceView( newTexture->m_texture, NULL, &newTexture->m_shaderResourceView );
-	if (!SUCCEEDED( hr ))
+	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+	srvDesc.Format = textureDesc.Format;
+	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	srvDesc.Texture2D.MostDetailedMip = 0;
+	srvDesc.Texture2D.MipLevels = -1;
+
+	hr = m_device->CreateShaderResourceView( newTexture->m_texture, &srvDesc, &newTexture->m_shaderResourceView );
+	if (FAILED( hr ))
 	{
 		ERROR_AND_DIE( Stringf( "Could not create shader resource view from image for file \"%s\".", image.GetImageFilePath().c_str() ) );
 	}
 
+	m_deviceContext->UpdateSubresource( newTexture->m_texture, 0, nullptr, image.GetRawData(), 4 * image.GetDimensions().x, 0 );
+
+	m_deviceContext->GenerateMips( newTexture->m_shaderResourceView );
+
 	return newTexture;
 }
+*/
+
+Texture* Renderer::CreateTextureFromImage( Image const& image, char const* name )
+{
+	Texture* newTexture = new Texture;
+	newTexture->m_dimensions = image.GetDimensions();
+	newTexture->m_name = name;
+
+	D3D11_TEXTURE2D_DESC textureDesc = {};
+	textureDesc.Width = image.GetDimensions().x;
+	textureDesc.Height = image.GetDimensions().y;
+	textureDesc.MipLevels = 0;
+	textureDesc.ArraySize = 1;
+	textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	textureDesc.SampleDesc.Count = 1;
+	textureDesc.Usage = D3D11_USAGE_DEFAULT;
+	textureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+	textureDesc.MiscFlags = D3D11_RESOURCE_MISC_GENERATE_MIPS;
+
+	HRESULT hr = m_device->CreateTexture2D( &textureDesc, nullptr, &newTexture->m_texture );
+	if (FAILED( hr ))
+	{
+		ERROR_AND_DIE( Stringf( "Could not create texture from image for file \"%s\".", image.GetImageFilePath().c_str() ) );
+	}
+
+	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+	srvDesc.Format = textureDesc.Format;
+	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	srvDesc.Texture2D.MostDetailedMip = 0;
+	srvDesc.Texture2D.MipLevels = (UINT)-1;
+
+	hr = m_device->CreateShaderResourceView( newTexture->m_texture, &srvDesc, &newTexture->m_shaderResourceView );
+	if (FAILED( hr ))
+	{
+		ERROR_AND_DIE( Stringf( "Could not create shader resource view from image for file \"%s\".", image.GetImageFilePath().c_str() ) );
+	}
+
+	m_deviceContext->UpdateSubresource( newTexture->m_texture, 0, nullptr, image.GetRawData(), 4 * image.GetDimensions().x, 0 );
+
+	m_deviceContext->GenerateMips( newTexture->m_shaderResourceView );
+
+	return newTexture;
+}
+
 
 Texture* Renderer::CreateTextureFromData( char const* name, IntVec2 dimensions, int bytesPerTexel, uint8_t* texelData )
 {
@@ -919,30 +1388,53 @@ Texture* Renderer::CreateTextureFromData( char const* name, IntVec2 dimensions, 
 	return newTexture;
 }
 
+bool Renderer::RemoveLoadedTexture( Texture* texture )
+{
+	for (int i = 0; i < m_loadedTextures.size(); i++)
+	{
+		if (m_loadedTextures[i] == texture)
+		{
+			delete texture;
+			m_loadedTextures[i] = nullptr;
+			return true;
+		}
+	}
+	return false;
+}
+
 Texture* Renderer::CreateTextureFromFile( char const* imageFilePath )
 {
+	if (!std::filesystem::exists( imageFilePath ))
+		return nullptr;
+
 	Image newImage = Image( imageFilePath );
 	Texture* newTexture = CreateTextureFromImage( newImage, imageFilePath );
 	m_loadedTextures.push_back( newTexture );
 	return newTexture;
 }
 
-void Renderer::BindTexture( Texture* texture )
+void Renderer::BindTexture( Texture* textureMap, unsigned int slot )
 {
-	if (texture == nullptr)
+	if (textureMap == nullptr)
 	{
 		BindTexture( m_defaultTexture );
 		return;
 	}
 
-	m_currentTexture = texture;
-	m_deviceContext->PSSetShaderResources( 0, 1, &m_currentTexture->m_shaderResourceView );
+	m_currentTexture = textureMap;
+	m_deviceContext->PSSetShaderResources( slot, 1, &m_currentTexture->m_shaderResourceView );
 }
 
-void Renderer::SetSamplerMode( SamplerMode samplerMode )
+void Renderer::SetSamplerMode( SamplerMode samplerMode, unsigned int slot )
 {
-	//m_samplerState = m_samplerStates[(int)(samplerMode)];
-	m_desiredSamplerMode = samplerMode;
+	if (slot == 0)
+	{
+		m_desiredSamplerMode = samplerMode;
+	}
+	else
+	{
+		m_deviceContext->PSSetSamplers( slot, 1, &m_samplerStates[(int)(samplerMode)] );
+	}
 }
 
 void Renderer::SetLightingConstants( float*& sunDirection, float sunIntensity, float ambientIntensity )
@@ -970,6 +1462,17 @@ void Renderer::SetLightingConstants( Vec3 const& sunDirection, float sunIntensit
 	BindConstantBuffer( k_lightingConstantSlot, m_lightingCBO );
 }
 
+void Renderer::SetLightingConstants( LightingConstants const& lightingConstants )
+{
+	LightingConstants lightingConst = lightingConstants;
+	Vec3 SDN = Vec3( lightingConst.sunDirection[0], lightingConst.sunDirection[1], lightingConst.sunDirection[2] ).GetNormalized();
+	lightingConst.sunDirection[0] = SDN.x;
+	lightingConst.sunDirection[1] = SDN.y;
+	lightingConst.sunDirection[2] = SDN.z;
+	CopyCPUToGPU( &lightingConst, sizeof( lightingConst ), m_lightingCBO );
+	BindConstantBuffer( k_lightingConstantSlot, m_lightingCBO );
+}
+
 void Renderer::SetModelConstants( Mat44 const& modelMatrix, Rgba8 const& modelColor )
 {
 	ModelConstants modelConst;
@@ -977,6 +1480,52 @@ void Renderer::SetModelConstants( Mat44 const& modelMatrix, Rgba8 const& modelCo
 	modelColor.GetAsFloats( modelConst.modelColor );
 	CopyCPUToGPU( &modelConst, sizeof( ModelConstants ), m_modelCBO );
 	BindConstantBuffer( k_modelConstantSlot, m_modelCBO );
+}
+
+void Renderer::SetJointConstants( std::vector<Mat44> const& globleTransforms, std::vector<Joint> const& joints )
+{
+	JointConstants* jointConst = new JointConstants;
+	int maxSize = MIN( 200, (int)joints.size() - 1 );
+	for (int i = 0; i < maxSize; i++)
+	{
+		jointConst->globalBineposeInverse[i] = joints[i].m_globalBindposeInverse;
+		jointConst->currentGlobalTransform[i] = globleTransforms[i];
+	}
+	CopyCPUToGPU( jointConst, sizeof( JointConstants ), m_jointCBO );
+	BindConstantBuffer( k_jointConstantSlot, m_jointCBO );
+	delete jointConst;
+}
+
+Texture* Renderer::CreateRenderTexture( IntVec2 const& dimensions, const char* name )
+{
+	Texture* newTexture = new Texture;
+	newTexture->m_dimensions = dimensions;
+	newTexture->m_name = name;
+	D3D11_TEXTURE2D_DESC renderTextureDesc = {};
+	renderTextureDesc.Width = dimensions.x;
+	renderTextureDesc.Height = dimensions.y;
+	renderTextureDesc.MipLevels = 1;
+	renderTextureDesc.ArraySize = 1;
+	renderTextureDesc.Usage = D3D11_USAGE_DEFAULT;
+	renderTextureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	renderTextureDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+	renderTextureDesc.SampleDesc.Count = 1;
+	HRESULT hr = m_device->CreateTexture2D( &renderTextureDesc, nullptr, &newTexture->m_texture );
+	if (!SUCCEEDED( hr ))
+	{
+		ERROR_AND_DIE( "Could not create render texture" );
+	}
+	hr = m_device->CreateShaderResourceView( newTexture->m_texture, NULL, &newTexture->m_shaderResourceView );
+	if (!SUCCEEDED( hr ))
+	{
+		ERROR_AND_DIE( Stringf( "Could not create shader resource view" ) );
+	}
+ 	hr = m_device->CreateRenderTargetView( newTexture->m_texture, NULL, &newTexture->m_renderTargetView );
+	if (!SUCCEEDED( hr ))
+	{
+		ERROR_AND_DIE( Stringf( "Could not create render target view" ) );
+	}
+	return newTexture;
 }
 
 void Renderer::SetCameraConstants( Mat44 const& projectionMatrix, Mat44 const& viewMatrix )
@@ -993,8 +1542,8 @@ void Renderer::SetCameraConstants( Mat44 const& projectionMatrix, Mat44 const& v
  BitmapFont* Renderer::CreateBitmapFontFromFile( char const* fontFilePathNameWithNoExtension )
  {
  	std::string imageFilePath = std::string(fontFilePathNameWithNoExtension);
- 	Texture& texture = *CreateOrGetTextureFromFile( imageFilePath.c_str() );
- 	return new BitmapFont( imageFilePath.c_str(), texture );
+ 	Texture& diffuseMap = *CreateOrGetTextureFromFile( imageFilePath.c_str() );
+ 	return new BitmapFont( imageFilePath.c_str(), diffuseMap );
  }
 // 
 // //------------------------------------------------------------------------------------------------

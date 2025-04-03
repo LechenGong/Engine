@@ -12,7 +12,7 @@ class SpriteDefinition;
 class SpriteSheet
 {
 public:
-	explicit SpriteSheet( Texture& texture, IntVec2 const& simpleGridLayout );
+	explicit SpriteSheet( Texture& diffuseMap, IntVec2 const& simpleGridLayout );
 
 	Texture& GetTexture() const;
 	int GetNumSprites() const;

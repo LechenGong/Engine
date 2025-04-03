@@ -32,6 +32,7 @@ void EventSystem::EndFrame()
 
 void EventSystem::SubscribeEventCallBackFunc( std::string const& eventName, void(*functionPtr)(), int numberOfArgs, std::string formatting )
 {
+	m_subscriptionMutex.lock();
 	for (EventSubscription& subIndex : m_subscriptionListByName[eventName])
 	{
 		if (subIndex.functionPtr == nullptr)
@@ -39,22 +40,27 @@ void EventSystem::SubscribeEventCallBackFunc( std::string const& eventName, void
 			subIndex.functionPtr = functionPtr;
 			subIndex.numberOfArgs = numberOfArgs;
 			subIndex.formatting = formatting;
+			m_subscriptionMutex.unlock();
 			return;
 		}
 	}
 	m_subscriptionListByName[eventName].push_back( EventSubscription{ functionPtr, numberOfArgs, formatting } );
+	m_subscriptionMutex.unlock();
 }
 
 void EventSystem::UnsubscribeEventCallbackFunc( std::string const& eventName, void(*functionPtr)() )
 {
+	m_subscriptionMutex.lock();
 	for (EventSubscription& subIndex : m_subscriptionListByName[eventName])
 	{
 		if (subIndex.functionPtr == functionPtr)
 		{
 			subIndex.functionPtr = nullptr;
+			m_subscriptionMutex.unlock();
 			return;
 		}
 	}
+	m_subscriptionMutex.unlock();
 }
 
 // int EventSystem::FireEvent( std::string const& eventName )
@@ -91,20 +97,19 @@ int EventSystem::FireEvent( std::string args )
 int EventSystem::FireEvent( Strings args )
 {
 	std::string eventName = args[0];
+	m_subscriptionMutex.lock();
 	if (m_subscriptionListByName.find( eventName ) == m_subscriptionListByName.end())
+	{
+		m_subscriptionMutex.unlock();
 		return 0;
+	}
+		
 
 	int counter = 0;
 	for (EventSubscription subIndex : m_subscriptionListByName[eventName])
 	{
 		if (subIndex.functionPtr == nullptr)
 			continue;
-		if (args.size() != subIndex.numberOfArgs)
-		{
-			g_devConsole->AddLine( g_devConsole->ERRORMSG, Stringf( "%s event requires %d arguments but received %d", eventName.c_str(), subIndex.numberOfArgs, args.size() ) );
-			g_devConsole->AddLine( g_devConsole->ERRORMSG, Stringf( "correct format is: %s", subIndex.formatting.c_str() ) );
-			continue;
-		}
 
 		bool flag = false;
 		if (eventName == "pause")
@@ -113,6 +118,7 @@ int EventSystem::FireEvent( Strings args )
 			counter++;
 			if (flag)
 			{
+				m_subscriptionMutex.unlock();
 				return flag;
 			}
 		}
@@ -122,6 +128,7 @@ int EventSystem::FireEvent( Strings args )
 			counter++;
 			if (flag)
 			{
+				m_subscriptionMutex.unlock();
 				return flag;
 			}
 		}
@@ -131,6 +138,7 @@ int EventSystem::FireEvent( Strings args )
 			counter++;
 			if (flag)
 			{
+				m_subscriptionMutex.unlock();
 				return flag;
 			}
 		}
@@ -140,6 +148,7 @@ int EventSystem::FireEvent( Strings args )
 			counter++;
 			if (flag)
 			{
+				m_subscriptionMutex.unlock();
 				return flag;
 			}
 		}
@@ -149,6 +158,7 @@ int EventSystem::FireEvent( Strings args )
 			counter++;
 			if (flag)
 			{
+				m_subscriptionMutex.unlock();
 				return flag;
 			}
 		}
@@ -158,6 +168,7 @@ int EventSystem::FireEvent( Strings args )
 			counter++;
 			if (flag)
 			{
+				m_subscriptionMutex.unlock();
 				return flag;
 			}
 		}
@@ -167,6 +178,7 @@ int EventSystem::FireEvent( Strings args )
 			counter++;
 			if (flag)
 			{
+				m_subscriptionMutex.unlock();
 				return flag;
 			}
 		}
@@ -176,6 +188,7 @@ int EventSystem::FireEvent( Strings args )
 			counter++;
 			if (flag)
 			{
+				m_subscriptionMutex.unlock();
 				return flag;
 			}
 		}
@@ -185,6 +198,7 @@ int EventSystem::FireEvent( Strings args )
 			counter++;
 			if (flag)
 			{
+				m_subscriptionMutex.unlock();
 				return flag;
 			}
 		}
@@ -194,6 +208,7 @@ int EventSystem::FireEvent( Strings args )
 			counter++;
 			if (flag)
 			{
+				m_subscriptionMutex.unlock();
 				return flag;
 			}
 		}
@@ -203,6 +218,7 @@ int EventSystem::FireEvent( Strings args )
 			counter++;
 			if (flag)
 			{
+				m_subscriptionMutex.unlock();
 				return flag;
 			}
 		}
@@ -212,6 +228,7 @@ int EventSystem::FireEvent( Strings args )
 			counter++;
 			if (flag)
 			{
+				m_subscriptionMutex.unlock();
 				return flag;
 			}
 		}
@@ -221,24 +238,55 @@ int EventSystem::FireEvent( Strings args )
 			counter++;
 			if (flag)
 			{
+				m_subscriptionMutex.unlock();
+				return flag;
+			}
+		}
+		else if (eventName == "LoadGameConfig")
+		{
+			flag = reinterpret_cast<bool(*)(char const*)>(subIndex.functionPtr)(args[1].c_str());
+			counter++;
+			if (flag)
+			{
+				m_subscriptionMutex.unlock();
 				return flag;
 			}
 		}
 	}
+	m_subscriptionMutex.unlock();
 	return counter;
+}
+
+std::unordered_map<std::string, SubscriptionList>::iterator EventSystem::CaseInsensitiveFind( std::unordered_map<std::string, SubscriptionList>& subscriptionList, const std::string& key )
+{
+	std::string lowerKey = ToLower( key );
+	for (auto i = subscriptionList.begin(); i != subscriptionList.end(); i++)
+	{
+		if (ToLower( i->first ) == lowerKey)
+		{
+			return i;
+		}
+	}
+	return subscriptionList.end();
 }
 
 bool EventSystem::IsEventSubscribed( std::string const& eventName )
 {
-	return m_subscriptionListByName.find( eventName ) != m_subscriptionListByName.end();
+	bool subscribed = false;
+	m_subscriptionMutex.lock();
+	subscribed = CaseInsensitiveFind(m_subscriptionListByName, eventName) != m_subscriptionListByName.end();
+	m_subscriptionMutex.unlock();
+	return subscribed;
 }
 
 Strings EventSystem::GetAllSubscribedName()
 {
 	Strings names;
+	m_subscriptionMutex.lock();
 	for (auto &subscription : m_subscriptionListByName)
 	{
 		names.push_back( subscription.first );
 	}
+	m_subscriptionMutex.unlock();
 	return names;
 }

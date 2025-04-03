@@ -14,4 +14,5 @@ public:
 	ID3D11Buffer* m_buffer = nullptr;
 	size_t m_size = 0;
 	UINT m_stride = 0;
+	bool m_isLinePrimitive = false;
 };

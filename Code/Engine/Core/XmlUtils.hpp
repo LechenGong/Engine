@@ -9,6 +9,7 @@
 #include "Engine/Core/Rgba8.hpp"
 #include "Engine/Core/StringUtils.hpp"
 #include "Engine/Math/EulerAngles.hpp"
+//#include "Engine/Math/Quat.hpp"
 #include "ThirdParty/tinyxml2/tinyxml2.h"
 
 typedef tinyxml2::XMLDocument	XmlDocument;
@@ -26,6 +27,7 @@ Rgba8 ParseXmlAttribute( XmlElement const& element, char const* attributeName, R
 Vec2 ParseXmlAttribute( XmlElement const& element, char const* attributeName, Vec2 const& defaultValue );
 Vec3 ParseXmlAttribute( XmlElement const& element, char const* attributeName, Vec3 const& defaultValue );
 EulerAngles ParseXmlAttribute( XmlElement const& element, char const* attributeName, EulerAngles const& defaultValue );
+//Quat ParseXmlAttribute( XmlElement const& element, char const* attributeName, Quat const& defaultValue );
 IntVec2 ParseXmlAttribute( XmlElement const& element, char const* attributeName, IntVec2 const& defaultValue );
 std::string ParseXmlAttribute( XmlElement const& element, char const* attributeName, std::string const& defaultValue );
 Strings ParseXmlAttribute( XmlElement const& element, char const* attributeName, Strings const& defaultValues );

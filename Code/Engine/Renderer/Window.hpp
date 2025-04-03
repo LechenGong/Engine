@@ -3,7 +3,7 @@
 #include <windows.h>			// #include this (massive, platform-specific) header in VERY few places (and .CPPs only)
 #include <string>
 
-#include "Engine/Core/EngineCommon.hpp"
+#include "Engine/Math/IntVec2.hpp"
 
 class InputSystem;
 
@@ -13,6 +13,8 @@ struct WindowConfig
 	std::string m_windowTitle = "Untitled App";
 	float m_clientAspect = 2.0f;
 	bool m_isFullScreen = false;
+	IntVec2 m_size = IntVec2( -1, -1 );
+	IntVec2 m_pos = IntVec2( -1, -1 );
 };
 
 class Window
@@ -35,6 +37,8 @@ public:
 	IntVec2 GetClientDimensions() const;
 
 	static Window* GetMainWindowInstance();
+
+	std::string GetFileNameFromBrowser( const char* directory );
 
 protected:
 	void CreateOSWindow();

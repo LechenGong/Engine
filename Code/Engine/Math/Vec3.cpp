@@ -4,6 +4,9 @@
 
 Vec3 const Vec3::ZERO = Vec3( 0.f, 0.f, 0.f );
 Vec3 const Vec3::ONE = Vec3( 1.f, 1.f, 1.f );
+Vec3 const Vec3::FORWARD = Vec3( 1.f, 0.f, 0.f );
+Vec3 const Vec3::LEFT = Vec3( 0.f, 1.f, 0.f );
+Vec3 const Vec3::UP = Vec3( 0.f, 0.f, 1.f );
 
 Vec3::Vec3( std::string data )
 {
@@ -109,12 +112,23 @@ void Vec3::SetFromText( std::string text )
 	if (text.find( ',' ) != std::string::npos)
 		elems = Split( text, ',' );
 	else if (text.find( ' ' ) != std::string::npos)
-		elems = Split( text, ' ' );
+		elems = Split( text, ' ', true );
 	else
 		return;
 	x = stof( elems[0] );
 	y = stof( elems[1] );
 	z = stof( elems[2] );
+}
+
+std::string Vec3::ToString() const
+{
+	std::string str = "";
+	str += std::to_string( x );
+	str += ' ';
+	str += std::to_string( y );
+	str += ' ';
+	str += std::to_string( z );
+	return str;
 }
 
 //-----------------------------------------------------------------------------------------------
@@ -221,4 +235,30 @@ bool Vec3::operator==( const Vec3& compare ) const
 bool Vec3::operator!=( const Vec3& compare ) const
 {
 	return !(x == compare.x && y == compare.y && z == compare.z);
+}
+
+float& Vec3::operator[] ( size_t index )
+{
+	switch (index)
+	{
+	case 0:
+		return x;
+	case 1:
+		return y;
+	default:
+		return z;
+	}
+}
+
+const float& Vec3::operator[] ( size_t index ) const
+{
+	switch (index)
+	{
+	case 0:
+		return x;
+	case 1:
+		return y;
+	default:
+		return z;
+	}
 }

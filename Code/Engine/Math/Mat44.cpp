@@ -3,6 +3,9 @@
 #include "Engine/Math/Vec3.hpp"
 #include "Engine/Math/Vec4.hpp"
 #include "Engine/Math/MathUtils.hpp"
+#include "Engine/Math/Quat.hpp"
+
+#include "Engine/Core/StringUtils.hpp"
 
 Mat44::Mat44()
 {
@@ -42,6 +45,40 @@ Mat44::Mat44( float const* sixteenValueBasisMajor )
 	m_values[Iy] = sixteenValueBasisMajor[1];	m_values[Jy] = sixteenValueBasisMajor[5];	m_values[Ky] = sixteenValueBasisMajor[9];	m_values[Ty] = sixteenValueBasisMajor[13];
 	m_values[Iz] = sixteenValueBasisMajor[2];	m_values[Jz] = sixteenValueBasisMajor[6];	m_values[Kz] = sixteenValueBasisMajor[10];	m_values[Tz] = sixteenValueBasisMajor[14];
 	m_values[Iw] = sixteenValueBasisMajor[3];	m_values[Jw] = sixteenValueBasisMajor[7];	m_values[Kw] = sixteenValueBasisMajor[11];	m_values[Tw] = sixteenValueBasisMajor[15];
+}
+
+Mat44::Mat44( Vec3 const& translation3D, Quat const& rotation3D, Vec3 const& scale3D )
+{
+	Mat44 transformMatrix = CreateTranslation3D( translation3D );
+	transformMatrix.Append( rotation3D.ToRotationMatrix() );
+	transformMatrix.Scale3D( scale3D );
+	*this = transformMatrix;
+}
+
+std::string Mat44::ToString() const
+{
+	std::string result;
+	for (int i = 0; i < 4; i++)
+	{
+		for (int j = 0; j < 4; j++)
+		{
+			result += std::to_string( GetElement( i, j ) );
+			result += ' ';
+		}
+	}
+	return result;
+}
+
+void Mat44::FromString( std::string const& str )
+{
+	Strings strs = Split( str, ' ', true );
+	for (int i = 0; i < 4; i++)
+	{
+		for (int j = 0; j < 4; j++)
+		{
+			SetElement( i, j, std::stof( strs[i * 4 + j] ) );
+		}
+	}
 }
 
 Mat44 const Mat44::CreateTranslation2D( Vec2 const& translationXY )
@@ -163,6 +200,15 @@ Mat44 const Mat44::CreatePerspectiveProjection( float fovDegrees, float aspect, 
 	return perspective;
 }
 
+Mat44 const Mat44::Interpolate( Mat44 const& matrixA, Mat44 const& matrixB, float factor )
+{
+	Vec3 interpolatedTranslation = matrixA.GetTranslation3D() * (1.0f - factor) + matrixB.GetTranslation3D() * factor;
+	Quat interpolatedRotation = Quat::SLERP( Quat( matrixA ), Quat( matrixB ), factor );
+	Vec3 interpolatedScale = matrixA.GetScale3D() * (1.0f - factor) + matrixB.GetScale3D() * factor;
+
+	return Mat44( interpolatedTranslation, interpolatedRotation, interpolatedScale );
+}
+
 Vec2 const Mat44::TransformVectorQuantity2D( Vec2 const& vectorQuantityXY ) const
 {
 	return Vec2(
@@ -197,6 +243,16 @@ Vec3 const Mat44::TransformPosition3D( Vec3 const& position3D ) const
 	);
 }
 
+Vec4 const Mat44::TransformPosition4D( Vec4 const& position4D ) const
+{
+	return Vec4(
+		m_values[Ix] * position4D.x + m_values[Jx] * position4D.y + m_values[Kx] * position4D.z + m_values[Tx] * position4D.w,
+		m_values[Iy] * position4D.x + m_values[Jy] * position4D.y + m_values[Ky] * position4D.z + m_values[Ty] * position4D.w,
+		m_values[Iz] * position4D.x + m_values[Jz] * position4D.y + m_values[Kz] * position4D.z + m_values[Tz] * position4D.w,
+		m_values[Ix] * position4D.x + m_values[Jy] * position4D.y + m_values[Kz] * position4D.z + m_values[Tz] * position4D.w
+	);
+}
+
 Vec4 const Mat44::TransformHomogeneous3D( Vec4 const& homogeneousPoint3D ) const
 {
 	return Vec4(
@@ -215,6 +271,11 @@ float* Mat44::GetAsFloatArray()
 float const* Mat44::GetAsFloatArray() const
 {
 	return m_values;
+}
+
+float const Mat44::GetElement( int i, int j ) const
+{
+	return m_values[j * 4 + i];
 }
 
 Vec2 const Mat44::GetIBasis2D() const
@@ -272,6 +333,15 @@ Vec4 const Mat44::GetTranslation4D() const
 	return Vec4( m_values[Tx], m_values[Ty], m_values[Tz], m_values[Tw] );
 }
 
+Vec3 const Mat44::GetScale3D() const
+{
+	return Vec3(
+		GetIBasis3D().GetLength(),
+		GetJBasis3D().GetLength(),
+		GetKBasis3D().GetLength()
+	);
+}
+
 Mat44 const Mat44::GetOrthonormalInverse() const
 {
 	Vec3 transform = this->GetTranslation3D();
@@ -279,6 +349,141 @@ Mat44 const Mat44::GetOrthonormalInverse() const
 	rotation.Transpose();
 	rotation.AppendTranslation3D( transform * -1 );
 	return rotation;
+}
+
+Mat44 const Mat44::GetInverse() const
+{
+	Mat44 inv;
+	float det;
+
+	inv.m_values[Ix] = m_values[Jy] * m_values[Kz] * m_values[Tw] -
+		m_values[Jy] * m_values[Kw] * m_values[Tz] -
+		m_values[Ky] * m_values[Jz] * m_values[Tw] +
+		m_values[Ky] * m_values[Jw] * m_values[Tz] +
+		m_values[Ty] * m_values[Jz] * m_values[Kw] -
+		m_values[Ty] * m_values[Jw] * m_values[Kz];
+
+	inv.m_values[Jx] = -m_values[Jx] * m_values[Kz] * m_values[Tw] +
+		m_values[Jx] * m_values[Kw] * m_values[Tz] +
+		m_values[Kx] * m_values[Jz] * m_values[Tw] -
+		m_values[Kx] * m_values[Jw] * m_values[Tz] -
+		m_values[Tx] * m_values[Jz] * m_values[Kw] +
+		m_values[Tx] * m_values[Jw] * m_values[Kz];
+
+	inv.m_values[Kx] = m_values[Jx] * m_values[Ky] * m_values[Tw] -
+		m_values[Jx] * m_values[Kw] * m_values[Ty] -
+		m_values[Kx] * m_values[Jy] * m_values[Tw] +
+		m_values[Kx] * m_values[Jw] * m_values[Ty] +
+		m_values[Tx] * m_values[Jy] * m_values[Kw] -
+		m_values[Tx] * m_values[Jw] * m_values[Ky];
+
+	inv.m_values[Tx] = -m_values[Jx] * m_values[Ky] * m_values[Tz] +
+		m_values[Jx] * m_values[Kz] * m_values[Ty] +
+		m_values[Kx] * m_values[Jy] * m_values[Tz] -
+		m_values[Kx] * m_values[Jz] * m_values[Ty] -
+		m_values[Tx] * m_values[Jy] * m_values[Kz] +
+		m_values[Tx] * m_values[Jz] * m_values[Ky];
+
+	inv.m_values[Iy] = -m_values[Iy] * m_values[Kz] * m_values[Tw] +
+		m_values[Iy] * m_values[Kw] * m_values[Tz] +
+		m_values[Ky] * m_values[Iz] * m_values[Tw] -
+		m_values[Ky] * m_values[Iw] * m_values[Tz] -
+		m_values[Ty] * m_values[Iz] * m_values[Kw] +
+		m_values[Ty] * m_values[Iw] * m_values[Kz];
+
+	inv.m_values[Jy] = m_values[Ix] * m_values[Kz] * m_values[Tw] -
+		m_values[Ix] * m_values[Kw] * m_values[Tz] -
+		m_values[Kx] * m_values[Iz] * m_values[Tw] +
+		m_values[Kx] * m_values[Iw] * m_values[Tz] +
+		m_values[Tx] * m_values[Iz] * m_values[Kw] -
+		m_values[Tx] * m_values[Iw] * m_values[Kz];
+
+	inv.m_values[Ky] = -m_values[Ix] * m_values[Ky] * m_values[Tw] +
+		m_values[Ix] * m_values[Kw] * m_values[Ty] +
+		m_values[Kx] * m_values[Iy] * m_values[Tw] -
+		m_values[Kx] * m_values[Iw] * m_values[Ty] -
+		m_values[Tx] * m_values[Iy] * m_values[Kw] +
+		m_values[Tx] * m_values[Iw] * m_values[Ky];
+
+	inv.m_values[Ty] = m_values[Ix] * m_values[Ky] * m_values[Tz] -
+		m_values[Ix] * m_values[Kz] * m_values[Ty] -
+		m_values[Kx] * m_values[Iy] * m_values[Tz] +
+		m_values[Kx] * m_values[Iz] * m_values[Ty] +
+		m_values[Tx] * m_values[Iy] * m_values[Kz] -
+		m_values[Tx] * m_values[Iz] * m_values[Ky];
+
+	inv.m_values[Iz] = m_values[Iy] * m_values[Jz] * m_values[Tw] -
+		m_values[Iy] * m_values[Jw] * m_values[Tz] -
+		m_values[Jy] * m_values[Iz] * m_values[Tw] +
+		m_values[Jy] * m_values[Iw] * m_values[Tz] +
+		m_values[Ty] * m_values[Iz] * m_values[Jw] -
+		m_values[Ty] * m_values[Iw] * m_values[Jz];
+
+	inv.m_values[Jz] = -m_values[Ix] * m_values[Jz] * m_values[Tw] +
+		m_values[Ix] * m_values[Jw] * m_values[Tz] +
+		m_values[Jx] * m_values[Iz] * m_values[Tw] -
+		m_values[Jx] * m_values[Iw] * m_values[Tz] -
+		m_values[Tx] * m_values[Iz] * m_values[Jw] +
+		m_values[Tx] * m_values[Iw] * m_values[Jz];
+
+	inv.m_values[Kz] = m_values[Ix] * m_values[Jy] * m_values[Tw] -
+		m_values[Ix] * m_values[Jw] * m_values[Ty] -
+		m_values[Jx] * m_values[Iy] * m_values[Tw] +
+		m_values[Jx] * m_values[Iw] * m_values[Ty] +
+		m_values[Tx] * m_values[Iy] * m_values[Jw] -
+		m_values[Tx] * m_values[Iw] * m_values[Jy];
+
+	inv.m_values[Tz] = -m_values[Ix] * m_values[Jy] * m_values[Tz] +
+		m_values[Ix] * m_values[Jz] * m_values[Ty] +
+		m_values[Jx] * m_values[Iy] * m_values[Tz] -
+		m_values[Jx] * m_values[Iz] * m_values[Ty] -
+		m_values[Tx] * m_values[Iy] * m_values[Jz] +
+		m_values[Tx] * m_values[Iz] * m_values[Jy];
+
+	inv.m_values[Iw] = -m_values[Iy] * m_values[Jz] * m_values[Kw] +
+		m_values[Iy] * m_values[Jw] * m_values[Kz] +
+		m_values[Jy] * m_values[Iz] * m_values[Kw] -
+		m_values[Jy] * m_values[Iw] * m_values[Kz] -
+		m_values[Ky] * m_values[Iz] * m_values[Jw] +
+		m_values[Ky] * m_values[Iw] * m_values[Jz];
+
+	inv.m_values[Jw] = m_values[Ix] * m_values[Jz] * m_values[Kw] -
+		m_values[Ix] * m_values[Jw] * m_values[Kz] -
+		m_values[Jx] * m_values[Iz] * m_values[Kw] +
+		m_values[Jx] * m_values[Iw] * m_values[Kz] +
+		m_values[Kx] * m_values[Iz] * m_values[Jw] -
+		m_values[Kx] * m_values[Iw] * m_values[Jz];
+
+	inv.m_values[Kw] = -m_values[Ix] * m_values[Jy] * m_values[Kw] +
+		m_values[Ix] * m_values[Jw] * m_values[Ky] +
+		m_values[Jx] * m_values[Iy] * m_values[Kw] -
+		m_values[Jx] * m_values[Iw] * m_values[Ky] -
+		m_values[Kx] * m_values[Iy] * m_values[Jw] +
+		m_values[Kx] * m_values[Iw] * m_values[Jy];
+
+	inv.m_values[Tw] = m_values[Ix] * m_values[Jy] * m_values[Kz] -
+		m_values[Ix] * m_values[Jz] * m_values[Ky] -
+		m_values[Jx] * m_values[Iy] * m_values[Kz] +
+		m_values[Jx] * m_values[Iz] * m_values[Ky] +
+		m_values[Kx] * m_values[Iy] * m_values[Jz] -
+		m_values[Kx] * m_values[Iz] * m_values[Jy];
+
+	det = m_values[Ix] * inv.m_values[Ix] + m_values[Iy] * inv.m_values[Jx] + m_values[Iz] * inv.m_values[Kx] + m_values[Iw] * inv.m_values[Tx];
+
+	if (det == 0)
+		return Mat44(); // Return an identity matrix or handle the error appropriately
+
+	det = 1.0f / det;
+
+	for (int i = 0; i < 16; i++)
+		inv.m_values[i] = inv.m_values[i] * det;
+
+	return inv;
+}
+
+void Mat44::SetElement( int i, int j, float value )
+{
+	m_values[j * 4 + i] = value;
 }
 
 void Mat44::SetTranslation2D( Vec2 const& translationXY )
@@ -393,6 +598,24 @@ void Mat44::SetIJKT4D( Vec4 const& iBasis4D, Vec4 const& jBasis4D, Vec4 const& k
 }
 
 
+void Mat44::SetScale3D( Vec3 const& scale3D )
+{
+	SetIJK3D(
+		GetIBasis3D().GetNormalized() * scale3D.x,
+		GetJBasis3D().GetNormalized() * scale3D.y,
+		GetKBasis3D().GetNormalized() * scale3D.z
+	);
+}
+
+void Mat44::Scale3D( Vec3 const& scale3D )
+{
+	SetIJK3D(
+		GetIBasis3D() * scale3D.x,
+		GetJBasis3D() * scale3D.y,
+		GetKBasis3D() * scale3D.z
+	);
+}
+
 void Mat44::Transpose()
 {
 	Mat44 old = *this;
@@ -502,4 +725,29 @@ void Mat44::AppendScaleNonUniform2D( Vec2 const& nonUniformScaleXY )
 void Mat44::AppendScaleNonUniform3D( Vec3 const& nonUniformScaleXYZ )
 {
 	Append( CreateNonUniformScale3D( nonUniformScaleXYZ ) );
+}
+
+Mat44 const Mat44::operator*( Mat44 const& appendThis ) const
+{
+	Mat44 result;
+	result.m_values[Ix] = m_values[Ix] * appendThis.m_values[Ix] + m_values[Jx] * appendThis.m_values[Iy] + m_values[Kx] * appendThis.m_values[Iz] + m_values[Tx] * appendThis.m_values[Iw];
+	result.m_values[Iy] = m_values[Iy] * appendThis.m_values[Ix] + m_values[Jy] * appendThis.m_values[Iy] + m_values[Ky] * appendThis.m_values[Iz] + m_values[Ty] * appendThis.m_values[Iw];
+	result.m_values[Iz] = m_values[Iz] * appendThis.m_values[Ix] + m_values[Jz] * appendThis.m_values[Iy] + m_values[Kz] * appendThis.m_values[Iz] + m_values[Tz] * appendThis.m_values[Iw];
+	result.m_values[Iw] = m_values[Iw] * appendThis.m_values[Ix] + m_values[Jw] * appendThis.m_values[Iy] + m_values[Kw] * appendThis.m_values[Iz] + m_values[Tw] * appendThis.m_values[Iw];
+
+	result.m_values[Jx] = m_values[Ix] * appendThis.m_values[Jx] + m_values[Jx] * appendThis.m_values[Jy] + m_values[Kx] * appendThis.m_values[Jz] + m_values[Tx] * appendThis.m_values[Jw];
+	result.m_values[Jy] = m_values[Iy] * appendThis.m_values[Jx] + m_values[Jy] * appendThis.m_values[Jy] + m_values[Ky] * appendThis.m_values[Jz] + m_values[Ty] * appendThis.m_values[Jw];
+	result.m_values[Jz] = m_values[Iz] * appendThis.m_values[Jx] + m_values[Jz] * appendThis.m_values[Jy] + m_values[Kz] * appendThis.m_values[Jz] + m_values[Tz] * appendThis.m_values[Jw];
+	result.m_values[Jw] = m_values[Iw] * appendThis.m_values[Jx] + m_values[Jw] * appendThis.m_values[Jy] + m_values[Kw] * appendThis.m_values[Jz] + m_values[Tw] * appendThis.m_values[Jw];
+
+	result.m_values[Kx] = m_values[Ix] * appendThis.m_values[Kx] + m_values[Jx] * appendThis.m_values[Ky] + m_values[Kx] * appendThis.m_values[Kz] + m_values[Tx] * appendThis.m_values[Kw];
+	result.m_values[Ky] = m_values[Iy] * appendThis.m_values[Kx] + m_values[Jy] * appendThis.m_values[Ky] + m_values[Ky] * appendThis.m_values[Kz] + m_values[Ty] * appendThis.m_values[Kw];
+	result.m_values[Kz] = m_values[Iz] * appendThis.m_values[Kx] + m_values[Jz] * appendThis.m_values[Ky] + m_values[Kz] * appendThis.m_values[Kz] + m_values[Tz] * appendThis.m_values[Kw];
+	result.m_values[Kw] = m_values[Iw] * appendThis.m_values[Kx] + m_values[Jw] * appendThis.m_values[Ky] + m_values[Kw] * appendThis.m_values[Kz] + m_values[Tw] * appendThis.m_values[Kw];
+
+	result.m_values[Tx] = m_values[Ix] * appendThis.m_values[Tx] + m_values[Jx] * appendThis.m_values[Ty] + m_values[Kx] * appendThis.m_values[Tz] + m_values[Tx] * appendThis.m_values[Tw];
+	result.m_values[Ty] = m_values[Iy] * appendThis.m_values[Tx] + m_values[Jy] * appendThis.m_values[Ty] + m_values[Ky] * appendThis.m_values[Tz] + m_values[Ty] * appendThis.m_values[Tw];
+	result.m_values[Tz] = m_values[Iz] * appendThis.m_values[Tx] + m_values[Jz] * appendThis.m_values[Ty] + m_values[Kz] * appendThis.m_values[Tz] + m_values[Tz] * appendThis.m_values[Tw];
+	result.m_values[Tw] = m_values[Iw] * appendThis.m_values[Tx] + m_values[Jw] * appendThis.m_values[Ty] + m_values[Kw] * appendThis.m_values[Tz] + m_values[Tw] * appendThis.m_values[Tw];
+	return result;
 }

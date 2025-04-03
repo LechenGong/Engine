@@ -69,3 +69,91 @@ Strings Split( std::string const& str, char delimiter, bool skip_empty/* = false
 {
 	return Split( str, std::string( 1, delimiter ), skip_empty, maxOperationTime );
 }
+
+Strings SplitByLength( std::string const& str, int maxLength )
+{
+	Strings result;
+	for (std::size_t i = 0; i < str.length(); i += maxLength) 
+	{
+		result.push_back( str.substr( i, maxLength ) );
+	}
+	return result;
+}
+
+std::string ToLower( std::string const& str )
+{
+	std::string lowerStr;
+	for (char c : str)
+	{
+		lowerStr += (char)std::tolower( static_cast<unsigned char>(c) );
+	}
+	return lowerStr;
+}
+
+std::string ToUpper( std::string const& str )
+{
+	std::string upperStr;
+	for (char c : str)
+	{
+		upperStr += (char)std::toupper( static_cast<unsigned char>(c) );
+	}
+	return upperStr;
+}
+
+std::string RemoveEndingSpace( std::string const& str )
+{
+	std::size_t endPos = str.find_last_not_of( ' ' );
+
+	if (endPos != std::string::npos) 
+	{
+		return str.substr( 0, endPos + 1 );
+	}
+	return "";
+}
+
+std::string RemoveChar( std::string const& str, char const& charToRemove )
+{
+	std::string tempString;
+	std::string newString;
+	for (int i = 0; i < str.size(); i++)
+	{
+		if (str[i] == charToRemove)
+		{
+			newString += tempString;
+			tempString.clear();
+		}
+		else
+		{
+			tempString.push_back( str[i] );
+		}
+	}
+	newString += tempString;
+	return newString;
+}
+
+Value TryConvert( std::string const& str )
+{
+	try {
+		size_t pos;
+		int intValue = std::stoi( str, &pos );
+		if (pos == str.length()) 
+		{
+			return intValue;
+		}
+	}
+	catch (const std::invalid_argument&) {}
+	catch (const std::out_of_range&) {}
+
+	try {
+		size_t pos;
+		float floatValue = std::stof( str, &pos );
+		if (pos == str.length()) 
+		{
+			return floatValue;
+		}
+	}
+	catch (const std::invalid_argument&) {}
+	catch (const std::out_of_range&) {}
+
+	return str.c_str();
+}

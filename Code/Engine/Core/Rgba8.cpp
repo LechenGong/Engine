@@ -10,7 +10,8 @@ Rgba8 const Rgba8::GREEN = Rgba8( 0, 255, 0, 255 );
 Rgba8 const Rgba8::MAGENTA = Rgba8( 255, 0, 255, 255 );
 Rgba8 const Rgba8::BLUE = Rgba8( 0, 0, 255, 255 );
 Rgba8 const Rgba8::YELLOW = Rgba8( 255, 255, 0, 255 );
-Rgba8 const Rgba8::GRAY		= Rgba8( 127, 127, 127, 255 );
+Rgba8 const Rgba8::GRAY = Rgba8( 127, 127, 127, 255 );
+Rgba8 const Rgba8::ORANGE = Rgba8( 250, 156, 28, 255 );
 
 Rgba8::Rgba8()
 	: r( 0 )
@@ -43,14 +44,41 @@ Rgba8::Rgba8( unsigned char r, unsigned char g, unsigned char b )
 
 void Rgba8::SetFromText( std::string text )
 {
-	Strings elems = Split( text, ',' );
-	r = static_cast<unsigned char>(stoi( elems[0] ));
-	g = static_cast<unsigned char>(stoi( elems[1] ));
-	b = static_cast<unsigned char>(stoi( elems[2] ));
-	if (elems.size() == 4)
-		a = static_cast<unsigned char>(stoi( elems[3] ));
-	else
-		a = 255;
+	if (text.find( ',' ) != std::string::npos)
+	{
+		Strings elems = Split( text, ',' );
+		r = static_cast<unsigned char>(stoi( elems[0] ));
+		g = static_cast<unsigned char>(stoi( elems[1] ));
+		b = static_cast<unsigned char>(stoi( elems[2] ));
+		if (elems.size() == 4)
+			a = static_cast<unsigned char>(stoi( elems[3] ));
+		else
+			a = 255;
+	}
+	else if (text.find( ' ' ) != std::string::npos)
+	{
+		Strings elems = Split( text, ' ' );
+		r = static_cast<unsigned char>(stoi( elems[0] ));
+		g = static_cast<unsigned char>(stoi( elems[1] ));
+		b = static_cast<unsigned char>(stoi( elems[2] ));
+		if (elems.size() == 4)
+			a = static_cast<unsigned char>(stoi( elems[3] ));
+		else
+			a = 255;
+	}
+}
+
+std::string Rgba8::ToString() const
+{
+	std::string str = "";
+	str += std::to_string( r );
+	str += ' ';
+	str += std::to_string( g );
+	str += ' ';
+	str += std::to_string( b );
+	str += ' ';
+	str += std::to_string( a );
+	return str;
 }
 
 void Rgba8::GetAsFloats( float* colorAsFloats ) const
@@ -67,6 +95,19 @@ void Rgba8::operator=( const Rgba8& copyFrom )
 	g = copyFrom.g;
 	b = copyFrom.b;
 	a = copyFrom.a;
+}
+
+bool const Rgba8::operator==( const Rgba8& other ) const
+{
+	return r == other.r &&
+		g == other.g &&
+		b == other.b &&
+		a == other.a;
+}
+
+bool const Rgba8::operator!=( const Rgba8& other ) const
+{
+	return !(*this == other);
 }
 
 Rgba8 Interpolate( Rgba8 start, Rgba8 end, float fraction )

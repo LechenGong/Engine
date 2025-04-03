@@ -17,8 +17,8 @@
 
 const Rgba8 DevConsole::ERRORMSG		= Rgba8::RED;
 const Rgba8 DevConsole::WARNINGMSG		= Rgba8::YELLOW;
-const Rgba8 DevConsole::INFOMSG_MAJOR	= Rgba8::BLUE;
-const Rgba8 DevConsole::INFOMSG_MINOR	= Rgba8::GREEN;
+const Rgba8 DevConsole::INFOMSG_MAJOR	= Rgba8::CYAN;
+const Rgba8 DevConsole::INFOMSG_MINOR	= Rgba8::WHITE;
 
 DevConsole* g_devConsole = nullptr;
 
@@ -40,9 +40,13 @@ void DevConsole::Startup()
 	m_cursorTimer->Start();
 	if (g_eventSystem != nullptr)
 	{
-		g_eventSystem->SubscribeEventCallBackFunc( "help", reinterpret_cast<void(*)()>(PrintAllCommand), 1 );
-		g_eventSystem->SubscribeEventCallBackFunc( "clear", reinterpret_cast<void(*)()>(ClearScreen), 1 );
-		g_eventSystem->SubscribeEventCallBackFunc( "history", reinterpret_cast<void(*)()>(PrintHistory), 1 );
+// 		g_eventSystem->SubscribeEventCallBackFunc( "help", &PrintAllCommand), 1 );
+// 		g_eventSystem->SubscribeEventCallBackFunc( "clear", &ClearScreen), 1 );
+// 		g_eventSystem->SubscribeEventCallBackFunc( "history", &PrintHistory), 1 );
+
+		g_eventSystem->SubscribeEventCallBackFunc( "help", &PrintAllCommand );
+		g_eventSystem->SubscribeEventCallBackFunc( "clear", &ClearScreen );
+		g_eventSystem->SubscribeEventCallBackFunc( "history", &PrintHistory );
 	}
 }
 
@@ -162,20 +166,26 @@ void DevConsole::PasteFromClipBoard()
 	}
 }
 
+void DevConsole::DisplayScrollUp()
+{
+	m_displayLineOffset--;
+}
+
+void DevConsole::DisplayScrollDown()
+{
+	m_displayLineOffset++;
+}
+
 void DevConsole::Execute( std::string const& consoleCommandText )
 {
 	Strings commands = Split( consoleCommandText, '\n', true );
 	for (std::string commandIndex : commands)
 	{
 		AddLine( INFOMSG_MAJOR, commandIndex );
-		std::replace( commandIndex.begin(), commandIndex.end(), '=', ' ' );
-		Strings contents = Split( commandIndex, ' ', true );
-		Strings contents2;
-		if (commandIndex[0] != '"')
-			contents2 = Split( commandIndex, ' ', true );
-		else
-			contents2.push_back( commandIndex );
-		if (contents.size() > 0 && !g_eventSystem->IsEventSubscribed( contents2[0] ))
+		//std::replace( commandIndex.begin(), commandIndex.end(), '=', ' ' );
+		Strings contents = Split( commandIndex, ' ', true, 1 );
+
+		if (contents.size() > 0 && !g_eventSystem->IsEventSubscribed( contents[0] ))
 		{
 			AddLine( ERRORMSG, "Invalid Command" );
 			return;
@@ -186,7 +196,15 @@ void DevConsole::Execute( std::string const& consoleCommandText )
 // 			contents[1].erase( std::remove_if( contents[1].begin(), contents[1].end(), []( unsigned char x ) { return std::isspace( x ); } ), contents[1].end() );
 // 		}
 		int totalSubs = 0;
-		totalSubs = g_eventSystem->FireEvent( contents2 );
+		if (contents.size() == 1)
+		{
+			totalSubs = g_eventSystem->FireEventEX( static_cast<std::string const&>(contents[0]) );
+		}
+		else if (contents.size() == 2)
+		{
+			totalSubs = g_eventSystem->FireEventEX( static_cast<std::string const&>(contents[0]), contents[1].c_str() );
+		}
+		
 // 		if (totalSubs == 0)
 // 			AddLine( ERRORMSG, "None responded" );
 // 		else
@@ -196,12 +214,16 @@ void DevConsole::Execute( std::string const& consoleCommandText )
 
 void DevConsole::AddLine( Rgba8 const& color, std::string const& text )
 {
+	m_linesMutex.lock();
 	m_lines.push_back( DevConsoleLine{ color, text } );
+	m_linesMutex.unlock();
 }
 
 void DevConsole::ResetLog()
 {
+	m_linesMutex.lock();
 	m_lines.clear();
+	m_linesMutex.unlock();
 }
 
 void DevConsole::Render( AABB2 const& bounds, Renderer* rendererOverride ) const
@@ -245,48 +267,75 @@ void DevConsole::ToggleMode()
 
 void DevConsole::Render_OpenFull( AABB2 const& bounds, Renderer& renderer, BitmapFont& font, float fontAspect ) const
 {
-	std::vector<Vertex_PCU>panel;
+	std::vector<Vertex_PCU>panelDisplay;
+	std::vector<Vertex_PCU>panelInput;
 	std::vector<Vertex_PCU>textMap;
+	std::vector<Vertex_PCU>inputMap;
 
 	int expectLineNum = static_cast<int>(m_config.linesToRender);
 	textMap.reserve( expectLineNum * 6 * 100 );
 	float cellHeight = bounds.GetDimensions().y / m_config.linesToRender + 1;
 	float cellWidth = cellHeight * fontAspect;
-	AddVertsForAABB2D( panel, AABB2( Vec2( 0.f, 0.f ), Vec2( bounds.GetDimensions().x, cellHeight ) ), Rgba8( 0, 0, 0, 150 ) );
-	AddVertsForAABB2D( panel, AABB2( Vec2( 0.f, cellHeight ), bounds.GetDimensions() ), Rgba8( 255, 255, 255, 50 ) );
-	
+	int maxCharacterPerLine = (int)std::floorf( bounds.GetDimensions().x / cellWidth );
+	AddVertsForAABB2D( panelDisplay, AABB2( Vec2( 0.f, cellHeight ), bounds.GetDimensions() ), Rgba8( 255, 255, 255, 50 ) );
+
 	renderer.SetModelConstants();
 	renderer.SetDepthMode( DepthMode::ENABLED );
 	renderer.SetBlendMode( BlendMode::ALPHA );
+	renderer.SetSamplerMode( SamplerMode::POINT_CLAMP );
  	renderer.BindTexture( nullptr );
- 	renderer.DrawVertexArray( panel );
+	renderer.BindShader( g_theRenderer->CreateShader( "Default" ) );
+ 	renderer.DrawVertexArray( panelDisplay );
 
-	for (int i = static_cast<int>(m_lines.size()) - 1; i >= static_cast<int>(m_lines.size()) - expectLineNum; --i)
+	m_linesMutex.lock();
+	int boxPosIndex = 1;
+	for (int i = static_cast<int>(m_lines.size()) - 1; i >= 0; --i)
 	{
 		if (i < 0)
 			break;
 
-		int index = static_cast<int>(m_lines.size()) - 1 - i + 1;
+		int line = i;
+// 		if (boxPosIndex + m_displayLineOffset < 1 || boxPosIndex + m_displayLineOffset >= expectLineNum)
+// 			continue;
 
-		AABB2 boundOnIndex = AABB2(
-			Vec2(
-				bounds.m_mins.x,
-				bounds.m_mins.y + cellHeight * index
-			),
-			Vec2(
-				bounds.m_maxs.x,
-				bounds.m_mins.y + cellHeight * (index + 1)
-			)
-		);
-		font.AddVertsForTextInBox2D( textMap, boundOnIndex, cellHeight * 0.6f, m_lines[i].text, m_lines[i].color, fontAspect, Vec2( 0.f, 0.5f ) );
+		Strings subLines = SplitByLength( m_lines[line].text, maxCharacterPerLine );
+		for (int j = 0; j < subLines.size(); j++)
+		{
+			AABB2 boundOnIndex = AABB2(
+				Vec2(
+					bounds.m_mins.x,
+					bounds.m_mins.y + cellHeight * /*index*/(float)boxPosIndex + m_displayLineOffset
+				),
+				Vec2(
+					bounds.m_maxs.x,
+					bounds.m_mins.y + cellHeight * /*(index + 1)*/(float)(boxPosIndex + 1 + m_displayLineOffset)
+				)
+			);
+			boxPosIndex += 1;
+			font.AddVertsForTextInBox2D( textMap, boundOnIndex, cellHeight * 0.6f, subLines[j], m_lines[line].color, fontAspect, Vec2( 0.f, 0.5f ), OVERRUN );
+		}
 	}
+	m_linesMutex.unlock();
 
-	font.AddVertsForTextInBox2D( textMap, AABB2( Vec2( 0.f, 0.f ), Vec2( bounds.GetDimensions().x, cellHeight ) ), cellHeight * 0.6f, m_inputText, Rgba8::WHITE, fontAspect, Vec2( 0.f, 0.3f ), OVERRUN );
-	renderer.SetModelConstants();
+	//renderer.SetModelConstants( Mat44().CreateTranslation2D( m_displayOffset ), Rgba8::WHITE );
 	renderer.SetDepthMode( DepthMode::ENABLED );
 	renderer.SetBlendMode( BlendMode::ALPHA );
 	renderer.BindTexture( &font.GetTexture() );
  	renderer.DrawVertexArray( textMap );
+
+	AddVertsForAABB2D( panelInput, AABB2( Vec2( 0.f, 0.f ), Vec2( bounds.GetDimensions().x, cellHeight ) ), Rgba8( 0, 0, 0, 255 ) );
+	renderer.SetModelConstants();
+	renderer.SetDepthMode( DepthMode::ENABLED );
+	renderer.SetBlendMode( BlendMode::ALPHA );
+	renderer.BindTexture( nullptr );
+	renderer.DrawVertexArray( panelInput );
+
+	font.AddVertsForTextInBox2D( inputMap, AABB2( Vec2( 0.f, 0.f ), Vec2( bounds.GetDimensions().x, cellHeight ) ), cellHeight * 0.6f, m_inputText, Rgba8::WHITE, fontAspect, Vec2( 0.f, 0.3f ), OVERRUN );
+	renderer.SetModelConstants();
+	renderer.SetDepthMode( DepthMode::ENABLED );
+	renderer.SetBlendMode( BlendMode::ALPHA );
+	renderer.BindTexture( &font.GetTexture() );
+	renderer.DrawVertexArray( inputMap );
 
  	if (IsSelecting())
  	{
@@ -526,6 +575,14 @@ bool DevConsoleFunctionKey( unsigned char param )
 	{
 		g_devConsole->UseNextInput();
 		g_devConsole->m_cursorTimer->Start();
+	}
+	else if (param == KEYCODE_MOUSEWHEELUP) // Mouse Scroll Up
+	{
+		g_devConsole->DisplayScrollUp();
+	}
+	else if (param == KEYCODE_MOUSEWHEELDOWN) // Mouse Scroll Down
+	{
+		g_devConsole->DisplayScrollDown();
 	}
 	return true;
 }

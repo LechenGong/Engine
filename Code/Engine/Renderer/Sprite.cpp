@@ -36,8 +36,8 @@ float SpriteDefinition::GetAspect() const
 	return 0.0f;
 }
 
-SpriteSheet::SpriteSheet( Texture& texture, IntVec2 const& simpleGridLayout )
-	: m_texture( texture )
+SpriteSheet::SpriteSheet( Texture& diffuseMap, IntVec2 const& simpleGridLayout )
+	: m_texture( diffuseMap )
 	, m_dimensions( simpleGridLayout )
 {
 	Vec2 grid( 1.f / (float)simpleGridLayout.x, 1.f / (float)simpleGridLayout.y );

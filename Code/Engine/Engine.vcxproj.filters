@@ -19,6 +19,42 @@
     <Filter Include="Model">
       <UniqueIdentifier>{8f976ece-6807-4ca7-80a4-a08b21cfede3}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Imgui">
+      <UniqueIdentifier>{5b30bccd-5faf-4001-8383-4a161ac78422}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="General">
+      <UniqueIdentifier>{3b93147f-10f8-4270-bd6f-9960dd5df94a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Animation">
+      <UniqueIdentifier>{3c2e85c3-3260-435e-8470-240cef8d33f9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="General\ShapeComponents">
+      <UniqueIdentifier>{fb6043bb-8af5-40d3-8ac8-bb2f4953fa1d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Net">
+      <UniqueIdentifier>{8fd2ba2f-6f8a-4911-b03f-b3f7b878e6a5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="General\ParticleSystem">
+      <UniqueIdentifier>{5e1a99cc-8e02-4bbc-85a2-ec5c03633205}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="BehaviorTree">
+      <UniqueIdentifier>{ebe6b506-66b6-4143-b051-cd78dbba9b06}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="BehaviorTree\TreeNodes">
+      <UniqueIdentifier>{d8f061a4-2a21-4b27-a74f-94ebd949778d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="BehaviorTree\TreeNodes\CompositeNodes">
+      <UniqueIdentifier>{f336da00-9eab-488d-aba3-cdb2a2a03e79}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="BehaviorTree\TreeNodes\DecoratorNodes">
+      <UniqueIdentifier>{aba5133a-8e1a-4c10-9f56-c436f7dff4fe}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="BehaviorTree\TreeNodes\LeafNodes">
+      <UniqueIdentifier>{fa5a65a4-8cff-4cc3-9f93-b32741884ca6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Binary">
+      <UniqueIdentifier>{2488a6bc-717e-42b6-92d1-1d97d990df8e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Math\Vec2.cpp">
@@ -180,14 +216,176 @@
     <ClCompile Include="Model\ObjUtil.cpp">
       <Filter>Model</Filter>
     </ClCompile>
-    <ClCompile Include="Model\FBXUtil.cpp">
-      <Filter>Model</Filter>
-    </ClCompile>
     <ClCompile Include="..\ThirdParty\Squirrel\RawNoise.cpp">
       <Filter>Math</Filter>
     </ClCompile>
     <ClCompile Include="..\ThirdParty\Squirrel\SmoothNoise.cpp">
       <Filter>Math</Filter>
+    </ClCompile>
+    <ClCompile Include="Math\IntVec3.cpp">
+      <Filter>Math</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\JobSystem.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Model\FBXImporter.cpp">
+      <Filter>Model</Filter>
+    </ClCompile>
+    <ClCompile Include="Model\FBXUtility.cpp">
+      <Filter>Model</Filter>
+    </ClCompile>
+    <ClCompile Include="Model\Vertex_Anim.cpp">
+      <Filter>Model</Filter>
+    </ClCompile>
+    <ClCompile Include="Renderer\ImGuiSystem.cpp">
+      <Filter>Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ThirdParty\imgui\imgui.cpp">
+      <Filter>Imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ThirdParty\imgui\imgui_demo.cpp">
+      <Filter>Imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ThirdParty\imgui\imgui_draw.cpp">
+      <Filter>Imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ThirdParty\imgui\imgui_tables.cpp">
+      <Filter>Imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ThirdParty\imgui\imgui_widgets.cpp">
+      <Filter>Imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ThirdParty\imgui\imgui_impl_dx11.cpp">
+      <Filter>Imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ThirdParty\imgui\imgui_impl_win32.cpp">
+      <Filter>Imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="General\SkeletalMesh.cpp">
+      <Filter>General</Filter>
+    </ClCompile>
+    <ClCompile Include="Model\ModelUtility.cpp">
+      <Filter>Model</Filter>
+    </ClCompile>
+    <ClCompile Include="General\MeshT.cpp">
+      <Filter>General</Filter>
+    </ClCompile>
+    <ClCompile Include="General\Character.cpp">
+      <Filter>General</Filter>
+    </ClCompile>
+    <ClCompile Include="General\Controller.cpp">
+      <Filter>General</Filter>
+    </ClCompile>
+    <ClCompile Include="Animation\AnimationSequence.cpp">
+      <Filter>Animation</Filter>
+    </ClCompile>
+    <ClCompile Include="Renderer\Material.cpp">
+      <Filter>Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="General\ShapeComponents\CapsuleComponent.cpp">
+      <Filter>General\ShapeComponents</Filter>
+    </ClCompile>
+    <ClCompile Include="General\ShapeComponents\CubeComponent.cpp">
+      <Filter>General\ShapeComponents</Filter>
+    </ClCompile>
+    <ClCompile Include="General\ShapeComponents\ShapeComponent.cpp">
+      <Filter>General\ShapeComponents</Filter>
+    </ClCompile>
+    <ClCompile Include="General\ShapeComponents\SphereComponent.cpp">
+      <Filter>General\ShapeComponents</Filter>
+    </ClCompile>
+    <ClCompile Include="General\StaticMesh.cpp">
+      <Filter>General</Filter>
+    </ClCompile>
+    <ClCompile Include="Math\Quat.cpp">
+      <Filter>Math</Filter>
+    </ClCompile>
+    <ClCompile Include="Animation\AnimationStateMachine.cpp">
+      <Filter>Animation</Filter>
+    </ClCompile>
+    <ClCompile Include="Animation\AnimationController.cpp">
+      <Filter>Animation</Filter>
+    </ClCompile>
+    <ClCompile Include="Animation\AnimationState.cpp">
+      <Filter>Animation</Filter>
+    </ClCompile>
+    <ClCompile Include="General\CharacterState.cpp">
+      <Filter>General</Filter>
+    </ClCompile>
+    <ClCompile Include="Net\NetSystem.cpp">
+      <Filter>Net</Filter>
+    </ClCompile>
+    <ClCompile Include="General\Actor.cpp">
+      <Filter>General</Filter>
+    </ClCompile>
+    <ClCompile Include="General\SceneComponent.cpp">
+      <Filter>General</Filter>
+    </ClCompile>
+    <ClCompile Include="General\Object.cpp">
+      <Filter>General</Filter>
+    </ClCompile>
+    <ClCompile Include="General\SkeletalMeshComponent.cpp">
+      <Filter>General</Filter>
+    </ClCompile>
+    <ClCompile Include="General\StaticMeshComponent.cpp">
+      <Filter>General</Filter>
+    </ClCompile>
+    <ClCompile Include="General\ParticleSystem\Particle.cpp">
+      <Filter>General\ParticleSystem</Filter>
+    </ClCompile>
+    <ClCompile Include="General\ParticleSystem\ParticleEmitter.cpp">
+      <Filter>General\ParticleSystem</Filter>
+    </ClCompile>
+    <ClCompile Include="BehaviorTree\BehaviorTree.cpp">
+      <Filter>BehaviorTree</Filter>
+    </ClCompile>
+    <ClCompile Include="BehaviorTree\Blackboard.cpp">
+      <Filter>BehaviorTree</Filter>
+    </ClCompile>
+    <ClCompile Include="BehaviorTree\TreeNodes\CompositeNodes\CompositeNode.cpp">
+      <Filter>BehaviorTree\TreeNodes\CompositeNodes</Filter>
+    </ClCompile>
+    <ClCompile Include="BehaviorTree\TreeNodes\DecoratorNodes\DecoratorNode.cpp">
+      <Filter>BehaviorTree\TreeNodes\DecoratorNodes</Filter>
+    </ClCompile>
+    <ClCompile Include="BehaviorTree\TreeNodes\TreeNode.cpp">
+      <Filter>BehaviorTree\TreeNodes</Filter>
+    </ClCompile>
+    <ClCompile Include="BehaviorTree\TreeNodes\LeafNodes\LeafNode.cpp">
+      <Filter>BehaviorTree\TreeNodes\LeafNodes</Filter>
+    </ClCompile>
+    <ClCompile Include="BehaviorTree\TreeNodes\TreeNodeFactory.cpp">
+      <Filter>BehaviorTree\TreeNodes</Filter>
+    </ClCompile>
+    <ClCompile Include="General\ActorUID.cpp">
+      <Filter>General</Filter>
+    </ClCompile>
+    <ClCompile Include="General\CharacterDefinition.cpp">
+      <Filter>General</Filter>
+    </ClCompile>
+    <ClCompile Include="BehaviorTree\TreeNodes\CompositeNodes\ExecutionSelector.cpp">
+      <Filter>BehaviorTree\TreeNodes\CompositeNodes</Filter>
+    </ClCompile>
+    <ClCompile Include="BehaviorTree\TreeNodes\CompositeNodes\ExecutionSequence.cpp">
+      <Filter>BehaviorTree\TreeNodes\CompositeNodes</Filter>
+    </ClCompile>
+    <ClCompile Include="BehaviorTree\TreeNodes\LeafNodes\ExecutionWait.cpp">
+      <Filter>BehaviorTree\TreeNodes\LeafNodes</Filter>
+    </ClCompile>
+    <ClCompile Include="Math\Convex2.cpp">
+      <Filter>Math</Filter>
+    </ClCompile>
+    <ClCompile Include="Math\Plane2.cpp">
+      <Filter>Math</Filter>
+    </ClCompile>
+    <ClCompile Include="Binary\BinaryUtil.cpp">
+      <Filter>Binary</Filter>
+    </ClCompile>
+    <ClCompile Include="BehaviorTree\TreeNodes\CompositeNodes\ExecutionRandomSelector.cpp">
+      <Filter>BehaviorTree\TreeNodes\CompositeNodes</Filter>
+    </ClCompile>
+    <ClCompile Include="BehaviorTree\TreeNodes\CompositeNodes\ExecutionRandomSequence.cpp">
+      <Filter>BehaviorTree\TreeNodes\CompositeNodes</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -380,14 +578,179 @@
     <ClInclude Include="Model\ObjUtil.hpp">
       <Filter>Model</Filter>
     </ClInclude>
-    <ClInclude Include="Model\FBXUtil.hpp">
-      <Filter>Model</Filter>
-    </ClInclude>
     <ClInclude Include="..\ThirdParty\Squirrel\RawNoise.hpp">
       <Filter>Math</Filter>
     </ClInclude>
     <ClInclude Include="..\ThirdParty\Squirrel\SmoothNoise.hpp">
       <Filter>Math</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\IntVec3.hpp">
+      <Filter>Math</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\JobSystem.hpp">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Model\FBXImporter.hpp">
+      <Filter>Model</Filter>
+    </ClInclude>
+    <ClInclude Include="Model\FBXUtility.hpp">
+      <Filter>Model</Filter>
+    </ClInclude>
+    <ClInclude Include="Model\Vertex_Anim.hpp">
+      <Filter>Model</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer\ImGuiSystem.hpp">
+      <Filter>Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ThirdParty\imgui\imconfig.h">
+      <Filter>Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ThirdParty\imgui\imgui.h">
+      <Filter>Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ThirdParty\imgui\imgui_internal.h">
+      <Filter>Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ThirdParty\imgui\imstb_rectpack.h">
+      <Filter>Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ThirdParty\imgui\imstb_textedit.h">
+      <Filter>Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ThirdParty\imgui\imstb_truetype.h">
+      <Filter>Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ThirdParty\imgui\imgui_impl_win32.h">
+      <Filter>Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ThirdParty\imgui\imgui_impl_dx11.h">
+      <Filter>Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="General\SkeletalMesh.hpp">
+      <Filter>General</Filter>
+    </ClInclude>
+    <ClInclude Include="Model\ModelUtility.hpp">
+      <Filter>Model</Filter>
+    </ClInclude>
+    <ClInclude Include="General\MeshT.hpp">
+      <Filter>General</Filter>
+    </ClInclude>
+    <ClInclude Include="General\Character.hpp">
+      <Filter>General</Filter>
+    </ClInclude>
+    <ClInclude Include="General\Controller.hpp">
+      <Filter>General</Filter>
+    </ClInclude>
+    <ClInclude Include="Animation\AnimationSequence.hpp">
+      <Filter>Animation</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer\Material.hpp">
+      <Filter>Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="General\ShapeComponents\CapsuleComponent.hpp">
+      <Filter>General\ShapeComponents</Filter>
+    </ClInclude>
+    <ClInclude Include="General\ShapeComponents\CubeComponent.hpp">
+      <Filter>General\ShapeComponents</Filter>
+    </ClInclude>
+    <ClInclude Include="General\ShapeComponents\ShapeComponent.hpp">
+      <Filter>General\ShapeComponents</Filter>
+    </ClInclude>
+    <ClInclude Include="General\ShapeComponents\SphereComponent.hpp">
+      <Filter>General\ShapeComponents</Filter>
+    </ClInclude>
+    <ClInclude Include="General\StaticMesh.hpp">
+      <Filter>General</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\Quat.hpp">
+      <Filter>Math</Filter>
+    </ClInclude>
+    <ClInclude Include="Animation\AnimationStateMachine.hpp">
+      <Filter>Animation</Filter>
+    </ClInclude>
+    <ClInclude Include="Animation\AnimationController.hpp">
+      <Filter>Animation</Filter>
+    </ClInclude>
+    <ClInclude Include="Animation\AnimationState.hpp">
+      <Filter>Animation</Filter>
+    </ClInclude>
+    <ClInclude Include="General\CharacterState.hpp">
+      <Filter>General</Filter>
+    </ClInclude>
+    <ClInclude Include="Net\NetSystem.hpp">
+      <Filter>Net</Filter>
+    </ClInclude>
+    <ClInclude Include="General\Actor.hpp">
+      <Filter>General</Filter>
+    </ClInclude>
+    <ClInclude Include="General\SceneComponent.hpp">
+      <Filter>General</Filter>
+    </ClInclude>
+    <ClInclude Include="General\Object.hpp">
+      <Filter>General</Filter>
+    </ClInclude>
+    <ClInclude Include="General\SkeletalMeshComponent.hpp">
+      <Filter>General</Filter>
+    </ClInclude>
+    <ClInclude Include="General\StaticMeshComponent.hpp">
+      <Filter>General</Filter>
+    </ClInclude>
+    <ClInclude Include="General\ParticleSystem\Particle.hpp">
+      <Filter>General\ParticleSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="General\ParticleSystem\ParticleEmitter.hpp">
+      <Filter>General\ParticleSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="BehaviorTree\BehaviorTree.h">
+      <Filter>BehaviorTree</Filter>
+    </ClInclude>
+    <ClInclude Include="BehaviorTree\Blackboard.h">
+      <Filter>BehaviorTree</Filter>
+    </ClInclude>
+    <ClInclude Include="BehaviorTree\TreeNodes\CompositeNodes\CompositeNode.h">
+      <Filter>BehaviorTree\TreeNodes\CompositeNodes</Filter>
+    </ClInclude>
+    <ClInclude Include="BehaviorTree\TreeNodes\DecoratorNodes\DecoratorNode.h">
+      <Filter>BehaviorTree\TreeNodes\DecoratorNodes</Filter>
+    </ClInclude>
+    <ClInclude Include="BehaviorTree\TreeNodes\TreeNode.h">
+      <Filter>BehaviorTree\TreeNodes</Filter>
+    </ClInclude>
+    <ClInclude Include="BehaviorTree\TreeNodes\LeafNodes\LeafNode.h">
+      <Filter>BehaviorTree\TreeNodes\LeafNodes</Filter>
+    </ClInclude>
+    <ClInclude Include="BehaviorTree\TreeNodes\TreeNodeFactory.h">
+      <Filter>BehaviorTree\TreeNodes</Filter>
+    </ClInclude>
+    <ClInclude Include="General\ActorUID.hpp">
+      <Filter>General</Filter>
+    </ClInclude>
+    <ClInclude Include="General\CharacterDefinition.hpp">
+      <Filter>General</Filter>
+    </ClInclude>
+    <ClInclude Include="BehaviorTree\TreeNodes\CompositeNodes\ExecutionSelector.h">
+      <Filter>BehaviorTree\TreeNodes\CompositeNodes</Filter>
+    </ClInclude>
+    <ClInclude Include="BehaviorTree\TreeNodes\CompositeNodes\ExecutionSequence.h">
+      <Filter>BehaviorTree\TreeNodes\CompositeNodes</Filter>
+    </ClInclude>
+    <ClInclude Include="BehaviorTree\TreeNodes\LeafNodes\ExecutionWait.h">
+      <Filter>BehaviorTree\TreeNodes\LeafNodes</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\Convex2.hpp">
+      <Filter>Math</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\Plane2.hpp">
+      <Filter>Math</Filter>
+    </ClInclude>
+    <ClInclude Include="Binary\BinaryUtil.hpp">
+      <Filter>Binary</Filter>
+    </ClInclude>
+    <ClInclude Include="BehaviorTree\TreeNodes\CompositeNodes\ExecutionRandomSelector.h">
+      <Filter>BehaviorTree\TreeNodes\CompositeNodes</Filter>
+    </ClInclude>
+    <ClInclude Include="BehaviorTree\TreeNodes\CompositeNodes\ExecutionRandomSequence.h">
+      <Filter>BehaviorTree\TreeNodes\CompositeNodes</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
