@@ -17,6 +17,7 @@
 #include "Engine/Core/DebugRenderSystem.hpp"
 #include "Engine/Model/ModelUtility.hpp"
 #include "Engine/General/SkeletalMeshComponent.hpp"
+#include "Engine/Animation/IKSolver.hpp"
 
 Character::Character()
 	: Actor()
@@ -124,7 +125,7 @@ void Character::Update( float deltaSeconds )
 				float previousTimeSecond = animStateMachine->GetOngoingAnimation( 0 ).GetPreviousAnimationPlaybackTime();
 				AnimationSequence* previousAnimaiton = (animStateMachine->GetOngoingAnimation( 0 ).GetPreviousState()) ? animStateMachine->GetOngoingAnimation( 0 ).GetPreviousState()->GetAnimation() : nullptr;
 				float crossfadeAlpha = animStateMachine->GetOngoingAnimation( 0 ).GetCrossfadeAlpha();
-				GetSkeletalMesh()->UpdateJoints( GetSkeletalMesh()->m_skeleton.m_joints, GetSkeletalMeshComponent()->GetSkeletonGlobalTransform(), currentTimeSeconds, currentAnimation, previousTimeSecond, previousAnimaiton, crossfadeAlpha );
+				GetSkeletalMesh()->UpdateJoints( GetSkeletalMeshComponent()->GetSkeletonGlobalTransform(), currentTimeSeconds, currentAnimation, previousTimeSecond, previousAnimaiton, crossfadeAlpha );
 				ComponentCollisionCheck();
 			}
 		}
@@ -148,6 +149,12 @@ void Character::Update( float deltaSeconds )
 //  	DebugAddMessage( m_animController->GetStateMachine()->GetOngoingAnimation( 0 ).GetCurrentState()->GetStateName(), deltaSeconds, Rgba8::GREEN, Rgba8::GREEN );
 //  	if (m_animController->GetStateMachine()->GetOngoingAnimation( 1 ).GetCurrentState())
 //  		DebugAddMessage( m_animController->GetStateMachine()->GetOngoingAnimation( 1 ).GetCurrentState()->GetStateName() + "   " + std::to_string(m_animController->GetStateMachine()->GetOngoingAnimation(1).blendAlpha), deltaSeconds, Rgba8::GREEN, Rgba8::GREEN);
+	if (currentAnimation->m_rootRotation.size() > 0)
+	{
+		Quat rootRotation = currentAnimation->GetRootRotationAtTime( currentAnimationClock, deltaSeconds );
+
+		SetActorLocalOrientation( GetActorLocalOrientation() * rootRotation );
+	}
 	if (currentAnimation->m_rootTranslation.size() > 0)
 	{
 		Vec3 rootTranslation = currentAnimation->GetRootTranslationAtTime( currentAnimationClock, deltaSeconds );
@@ -156,17 +163,33 @@ void Character::Update( float deltaSeconds )
 		//Vec3 position = GetActorLocalPosition() + rootTranslation * GetSkeletalMeshComponent()->GetLocalScale();
 		SetActorLocalPosition( position );
 	}
-	if (currentAnimation->m_rootRotation.size() > 0)
-	{
-		Quat rootRotation = currentAnimation->GetRootRotationAtTime( currentAnimationClock, deltaSeconds );
 
-		SetActorLocalOrientation( GetActorLocalOrientation() * rootRotation );
-	}
 
 	if (GetSkeletalMesh())
 	{
 		GetSkeletalMesh()->Update();
-		GetSkeletalMesh()->UpdateJoints( GetSkeletalMesh()->m_skeleton.m_joints, GetSkeletalMeshComponent()->GetSkeletonGlobalTransform(), m_animController->GetStateMachine() );
+		GetSkeletalMesh()->UpdateJoints( GetSkeletalMeshComponent()->GetSkeletonGlobalTransform(), m_animController->GetStateMachine() );
+
+		for (int i = 0; i < GetSkeletalMesh()->m_skeleton.m_joints.size(); i++)
+		{
+			Mat44 globalTransform = GetSkeletalMesh()->m_skeleton.m_joints[i].m_globalBindposeInverse.GetInverse();
+			static const Mat44 XRotation90 = Mat44::CreateXRotationDegrees( 90.f );
+			static const Mat44 ZRotation90 = Mat44::CreateZRotationDegrees( 90.f );
+			globalTransform = XRotation90 * globalTransform;
+			globalTransform = ZRotation90 * globalTransform;
+			GetSkeletalMeshComponent()->GetSkeletonGlobalTransform()[i] = globalTransform;
+		}
+
+		if (m_name == "Paladin")
+		{
+			FootIKConfig a;
+			a.footJointName = "mixamorig:LeftToeBase";
+			a.kneeJointName = "mixamorig:LeftFoot";
+			a.thighJointName = "mixamorig:LeftLeg";
+			Vec3 pos = GetSkeletalMeshComponent()->GetSkeletonGlobalTransform()[GetSkeletalMesh()->GetJointIndexByName( a.footJointName )].GetTranslation3D();
+			RaycastResult3D result = GetAboveGroundHeight( pos );
+			GetSkeletalMesh()->ApplyFootIK( GetSkeletalMeshComponent()->GetSkeletonGlobalTransform(), a, result.m_impactPos );
+		}
 	}
 
 	SetIsGrounded( false );

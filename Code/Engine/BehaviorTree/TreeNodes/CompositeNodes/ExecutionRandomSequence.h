@@ -8,8 +8,9 @@ class ExecutionRandomSequence : public CompositeNode
 public:
 	ExecutionRandomSequence( BehaviorTree* bt, int selfIndex, int parentIndex, int location = -1 );
 
-	void InternalSpawn( const BehaviorTree::Context* btContext ) override;
-	NodeStatus InternalTick( const BehaviorTree::Context* btContext ) override;
+	void InternalSpawn( [[maybe_unused]] const BehaviorTree::Context* btContext ) override;
+	NodeStatus InternalTick( [[maybe_unused]] const BehaviorTree::Context* btContext ) override;
+	void InternalTerminate( [[maybe_unused]] const BehaviorTree::Context* btContext ) override {};
 
 	std::string GetTypeName() const override;
 };

@@ -25,6 +25,8 @@ public:
 	ConvexHull2();
 	~ConvexHull2();
 
+	bool IsPointInside( Vec2 const& pos ) const;
+
 public:
 	std::vector<Plane2> m_boundingPlanes;
 };

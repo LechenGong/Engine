@@ -371,50 +371,50 @@ std::string BufferParser::ParseStringAfter32BitLength()
 
 Rgba8 BufferParser::ParseRgba()
 {
-	return Rgba8(
-		ParseByte(),
-		ParseByte(),
-		ParseByte(),
-		ParseByte()
-	);
+	unsigned char r = ParseByte();
+	unsigned char g = ParseByte();
+	unsigned char b = ParseByte();
+	unsigned char a = ParseByte();
+	return Rgba8( r, g, b, a );
 }
 
 Rgba8 BufferParser::ParseRgb()
 {
-	return Rgba8(
-		ParseByte(),
-		ParseByte(),
-		ParseByte()
-	);
+	unsigned char r = ParseByte();
+	unsigned char g = ParseByte();
+	unsigned char b = ParseByte();
+	return Rgba8( r, g, b, 255 );
 }
 
 IntVec2 BufferParser::ParseIntVec2()
 {
-	return IntVec2(
-		ParseInt(),
-		ParseInt()
-	);
+	int a = ParseInt();
+	int b = ParseInt();
+	return IntVec2( a, b );
 }
 
 Vec2 BufferParser::ParseVec2()
 {
-	return Vec2(
-		ParseFloat(),
-		ParseFloat()
-	);
+	float a = ParseFloat();
+	float b = ParseFloat();
+	return Vec2( a, b );
 }
 
 AABB2 BufferParser::ParseAABB2()
 {
-	return AABB2(
-		ParseVec2(),
-		ParseVec2()
-	);
+	Vec2 a = ParseVec2();
+	Vec2 b = ParseVec2();
+	return AABB2( a, b );
 }
 
 Vertex_PCU BufferParser::ParseVertexPCU()
 {
-	return Vertex_PCU( Vec3( ParseFloat(), ParseFloat(), ParseFloat() ), ParseRgba(), ParseVec2() );
+	float a = ParseFloat();
+	float b = ParseFloat();
+	float c = ParseFloat();
+	Rgba8 rgba = ParseRgba();
+	Vec2 vec2 = ParseVec2();
+	return Vertex_PCU( Vec3( a, b, c ), rgba, vec2 );
 }
 
 void BufferParser::SetEndianMode( Endianness mode )

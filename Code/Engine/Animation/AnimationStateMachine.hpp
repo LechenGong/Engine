@@ -45,7 +45,7 @@ public:
 		std::unordered_map<int, bool> m_eventTriggered;
 
 		void Update( float deltaSeconds );
-		void TransitTo( std::string const& stateName, float duration = 0.3f, bool interrupting = false, float startTime = 0.f );
+		void TransitTo( std::string const& stateName, float duration = 0.1f, bool interrupting = false, float startTime = 0.f );
 
 		AnimationState* GetStateByName( std::string const& stateName ) const;
 
@@ -58,6 +58,7 @@ public:
 		float GetCrossfadeAlpha() const; // Alpha is 0 on begin, 1 on end
 
 		bool HasCurrentAnimationEnded() const;
+		bool HasCurrentAnimationReadyForCrossfade( float crossfadeDuration ) const;
 		bool HasPreviousAnimationEnded() const;
 
 		int GetCurrentLoopCount() const;

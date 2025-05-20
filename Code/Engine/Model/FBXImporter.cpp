@@ -606,62 +606,64 @@ void FBX::LoadJointsAndAnimations( FbxNode* pNode )
 		FbxQuaternion currentRotation;
 		FbxQuaternion deltaRotation;
 
+		FbxAMatrix previousGlobalTransform;
+		previousGlobalTransform.SetIdentity();
+
 		for (FbxLongLong i = start.GetFrameCount( timeMode ); i <= end.GetFrameCount( timeMode ); i++)
 		{
 			if (!skin) break;
 
 			int clusterCount = skin->GetClusterCount();
-			FbxAMatrix rootLocalTransform;
 			FbxAMatrix rootGlobalTransform;
+			FbxAMatrix rootLocalTransform;
+			FbxAMatrix defaultRootTransform;
 			for (int clusterIndex = 0; clusterIndex < clusterCount; clusterIndex++)
 			{
 				FbxCluster* cluster = skin->GetCluster( clusterIndex );
 				std::string jointName = cluster->GetLink()->GetName();
+				FbxNode* parentNode = cluster->GetLink()->GetParent();
 
 				FbxTime currTime;
 				currTime.SetFrame( i, timeMode );
 
-				bool isRoot = (jointName == "mixamorig:Hips") || (jointName == "Root");
+				bool isRoot = false;
+				if (parentNode != nullptr)
+				{
+					FbxSkeleton* parentSkeleton = parentNode->GetSkeleton();
+					isRoot = (parentSkeleton == nullptr); // No parent skeleton => root
+				}
+
 				if (isRoot)
 				{
 					if (i != 0)
 					{
 						rootGlobalTransform = cluster->GetLink()->EvaluateGlobalTransform( currTime );
-						rootLocalTransform = cluster->GetLink()->EvaluateLocalTransform( currTime );
-// 						currentPosition = rootGlobalTransform.GetT();
-// 						deltaPosition = currentPosition - previousPosition;
-// 						previousPosition = currentPosition;
-// 
+
 // 						currentRotation = rootGlobalTransform.GetQ();
 // 						deltaRotation = currentRotation / previousRotation;
 // 						previousRotation = currentRotation;
 // 
-// 						FbxQuaternion rootLocalRotationInverse = rootLocalTransform.GetQ();
-// 						rootLocalRotationInverse.Inverse();
-// 						FbxAMatrix rootLocalRotationInverseMatrix;
-// 						rootLocalRotationInverseMatrix.SetQ( rootLocalRotationInverse );
-// 						deltaPosition = rootLocalRotationInverseMatrix.MultT( deltaPosition );
+// 						FbxAMatrix rootGlobalTransformNoRotation = rootGlobalTransform;
+// 						rootGlobalTransformNoRotation.SetQ( FbxQuaternion( 1, 0, 0, 0 ) );
+// 						currentPosition = rootGlobalTransformNoRotation.GetT();
+// 						deltaPosition = currentPosition - previousPosition;
+// 						previousPosition = currentPosition;
 
-						currentRotation = rootGlobalTransform.GetQ();
-						deltaRotation = currentRotation / previousRotation;
-						previousRotation = currentRotation;
-
-						FbxAMatrix rootGlobalTransformNoRotation = rootGlobalTransform;
-						rootGlobalTransformNoRotation.SetQ( FbxQuaternion( 1, 0, 0, 0 ) );
-						currentPosition = rootGlobalTransformNoRotation.GetT();
-						deltaPosition = currentPosition - previousPosition;
-						previousPosition = currentPosition;
-
+						FbxAMatrix deltaGlobalTransform = rootGlobalTransform * previousGlobalTransform.Inverse();
+						deltaPosition = deltaGlobalTransform.GetT();
+						deltaRotation = deltaGlobalTransform.GetQ();
+						previousGlobalTransform = rootGlobalTransform;
 						break;
 					}
 					else
 					{
 						rootGlobalTransform = cluster->GetLink()->EvaluateGlobalTransform( currTime );
 						rootLocalTransform = cluster->GetLink()->EvaluateLocalTransform( currTime );
-						previousRotation = rootGlobalTransform.GetQ();
-						FbxAMatrix rootGlobalTransformNoRotation = rootGlobalTransform;
-						rootGlobalTransformNoRotation.SetQ( FbxQuaternion( 1, 0, 0, 0 ) );
-						previousPosition = rootGlobalTransformNoRotation.GetT();
+						previousGlobalTransform = rootGlobalTransform;
+// 						previousRotation = rootGlobalTransform.GetQ();
+// 						FbxAMatrix rootGlobalTransformNoRotation = rootGlobalTransform;
+// 						rootGlobalTransformNoRotation.SetQ( FbxQuaternion( 1, 0, 0, 0 ) );
+// 						previousPosition = rootGlobalTransformNoRotation.GetT();
 						break;
 					}
 				}

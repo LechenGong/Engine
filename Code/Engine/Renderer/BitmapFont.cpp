@@ -5,11 +5,47 @@
 #include "Engine/Core/VertexUtils.hpp"
 #include "Engine/Core/EngineCommon.hpp"
 #include "Engine/Math/MathUtils.hpp"
+#include "Engine/Core/XmlUtils.hpp"
 
 BitmapFont::BitmapFont( char const* fontFilePathNameWithNoExtension, Texture& fontTexture )
 	: m_fontGlyphsSpriteSheet( fontTexture, IntVec2( 16, 16 ) )
 	, m_fontFilePathNameWithNoExtension( fontFilePathNameWithNoExtension )
+	, m_fontTexture( fontTexture )
 {
+}
+
+BitmapFont::BitmapFont( char const* xmlPath, char const* fontPath, Texture& fontTexture )
+	: m_fontGlyphsSpriteSheet( fontTexture, IntVec2( 16, 16 ) )
+	, m_fontFilePathNameWithNoExtension( fontPath )
+	, m_fontTexture( fontTexture )
+{
+	XmlDocument xmlDoc;
+	XmlError result = xmlDoc.LoadFile( xmlPath );
+	GUARANTEE_OR_DIE( result == tinyxml2::XML_SUCCESS, "Failed to load font XML" );
+
+	XmlElement* root = xmlDoc.RootElement();
+	GUARANTEE_OR_DIE( root != nullptr, "Font XML has no root" );
+
+	XmlElement* charsElement = root->FirstChildElement( "chars" );
+	GUARANTEE_OR_DIE( charsElement != nullptr, "No <chars> element in font XML" );
+
+	XmlElement* charElement = charsElement->FirstChildElement( "char" );
+	while (charElement)
+	{
+		CustomFontInfo info;
+		info.m_id = ParseXmlAttribute( *charElement, "id", 0 );
+		info.m_x = ParseXmlAttribute( *charElement, "x", 0 );
+		info.m_y = ParseXmlAttribute( *charElement, "y", 0 );
+		info.m_width = ParseXmlAttribute( *charElement, "width", 0 );
+		info.m_height = ParseXmlAttribute( *charElement, "height", 0 );
+		info.m_xOffset = ParseXmlAttribute( *charElement, "xoffset", 0 );
+		info.m_yOffset = ParseXmlAttribute( *charElement, "yoffset", 0 );
+		info.m_xAdvance = ParseXmlAttribute( *charElement, "xadvance", 0 );
+
+		m_customFontMap[info.m_id] = info;
+
+		charElement = charElement->NextSiblingElement( "char" );
+	}
 }
 
 Texture& BitmapFont::GetTexture()
@@ -135,6 +171,63 @@ float BitmapFont::GetTextWidth( float cellHeight, std::string const& text, float
 {
 	return cellHeight * cellAspect * text.length();
 }
+
+void BitmapFont::AddVertsForCustomBitmap(
+std::vector<Vertex_PCU>& vertexArray,
+	Vec2 const& textMins,
+	float cellHeight,
+	std::string const& text,
+	Rgba8 const& tint,
+	float spaceBetweenTwoChar
+)
+{
+	Vec2 currentPos = textMins;
+	float standardHeight = cellHeight;
+
+	float lineHeight = 72.0f;
+
+	for (char c : text)
+	{
+		auto it = m_customFontMap.find( c );
+		if (it == m_customFontMap.end()) 
+			continue; 
+
+		CustomFontInfo& fontInfo = it->second;
+
+		float ratio = standardHeight / lineHeight;
+		float characterWidth = fontInfo.m_width * ratio;
+		float characterHeight = fontInfo.m_height * ratio;
+
+		float Yoffset = fontInfo.m_yOffset * ratio;
+		Yoffset = 0;
+
+		AABB2 characterBounds{
+			currentPos,
+			Vec2( currentPos.x + characterWidth, currentPos.y + characterHeight )
+		};
+
+		characterBounds.m_mins.y -= Yoffset;
+		characterBounds.m_maxs.y -= Yoffset;
+
+		float textureWidth = static_cast<float>(m_fontTexture.GetDimensions().x);
+		float textureHeight = static_cast<float>(m_fontTexture.GetDimensions().y);
+
+		Vec2 UVMin{
+			static_cast<float>(fontInfo.m_x) / textureWidth,
+			1.0f - (static_cast<float>(fontInfo.m_y + fontInfo.m_height) / textureHeight)
+		};
+
+		Vec2 UVMax{
+			static_cast<float>(fontInfo.m_x + fontInfo.m_width) / textureWidth,
+			1.0f - (static_cast<float>(fontInfo.m_y) / textureHeight)
+		};
+
+		AddVertsForAABB2D( vertexArray, characterBounds, tint, UVMin, UVMax );
+
+		currentPos.x += fontInfo.m_xAdvance * ratio + spaceBetweenTwoChar;
+	}
+}
+
 
 float BitmapFont::GetGlyphAspect( int glyphUnicode ) const
 {

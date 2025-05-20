@@ -1176,6 +1176,21 @@ Mat44 const GetLookAtMatrix( Vec3 forwardVec )
 	return Mat44( iBasis, jBasis, kBasis, Vec3::ZERO );
 }
 
+Mat44 const CreateLookRotation( Vec3 const& forward, Vec3 const& up ) 
+{
+	Vec3 x = forward.GetNormalized();               // X: Forward
+	Vec3 z = up.GetNormalized();                    // Z: Up
+	Vec3 y = CrossProduct3D( z, x ).GetNormalized();    // Y: Left
+
+	Mat44 m;
+
+	m.SetIJK3D( x, y, z );  // X-axis = Forward
+							// Y-axis = Left
+							// Z-axis = Up
+
+	return m;
+}
+
 Mat44 const GetBillboardMatrix( BillboardType billboardType, Mat44 const& cameraMatrix, const Vec3& billboardPosition, const Vec2& billboardScale )
 {
 	Mat44 transformMat;

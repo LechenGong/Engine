@@ -51,3 +51,15 @@ ConvexHull2::ConvexHull2()
 ConvexHull2::~ConvexHull2()
 {
 }
+
+bool ConvexHull2::IsPointInside( Vec2 const& pos ) const
+{
+	for (int i = 0; i < m_boundingPlanes.size(); i++)
+	{
+		if (m_boundingPlanes[i].IsPointInFrontOfPlane( pos ))
+		{
+			return false;
+		}
+	}
+	return true;
+}

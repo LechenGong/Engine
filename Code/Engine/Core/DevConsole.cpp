@@ -176,21 +176,24 @@ void DevConsole::DisplayScrollDown()
 	m_displayLineOffset++;
 }
 
-void DevConsole::Execute( std::string const& consoleCommandText )
+void DevConsole::Execute( std::string const& consoleCommandText, bool echoInput )
 {
-	Strings commands = Split( consoleCommandText, '\n', true );
+	//Strings commands = Split( consoleCommandText, '\n', true );
+	Strings commands = SplitWithQuotation( consoleCommandText, '\n', true, false );
 	for (std::string commandIndex : commands)
 	{
-		AddLine( INFOMSG_MAJOR, commandIndex );
+		if (echoInput)
+			AddLine( INFOMSG_MAJOR, commandIndex );
 		//std::replace( commandIndex.begin(), commandIndex.end(), '=', ' ' );
-		Strings contents = Split( commandIndex, ' ', true, 1 );
+		//Strings contents = Split( commandIndex, ' ', true, 1 );
+		Strings contents = SplitWithQuotation( commandIndex, ' ', true, false, 1 );
 
 		if (contents.size() > 0 && !g_eventSystem->IsEventSubscribed( contents[0] ))
 		{
-			AddLine( ERRORMSG, "Invalid Command" );
+			AddLine( ERRORMSG, "Invalid Command: " + commandIndex );
 			return;
  		}
-
+		
 // 		if (contents.size() > 1)
 // 		{
 // 			contents[1].erase( std::remove_if( contents[1].begin(), contents[1].end(), []( unsigned char x ) { return std::isspace( x ); } ), contents[1].end() );
@@ -415,7 +418,7 @@ bool PrintHistory()
 	return false;
 }
 
-bool DevConsoleLiteralKey( unsigned char param )
+bool DevConsoleLiteralKey( unsigned int param )
 {
 	if (g_devConsole == nullptr)
 	{
@@ -429,7 +432,7 @@ bool DevConsoleLiteralKey( unsigned char param )
 	if (param >= 32 && param <= 126 && param != 96 && param != 13)
 	{
 		g_devConsole->ClearSelected();
-		g_devConsole->m_inputText.insert( g_devConsole->m_inputText.begin() + g_devConsole->m_cursorPos, param );
+		g_devConsole->m_inputText.insert( g_devConsole->m_inputText.begin() + g_devConsole->m_cursorPos, (unsigned char)param );
 		g_devConsole->m_cursorPos++;
 		g_devConsole->ResetSelected();
 		g_devConsole->m_cursorTimer->Start();
@@ -455,7 +458,7 @@ bool DevConsoleLiteralKey( unsigned char param )
 	return true;
 }
 
-bool DevConsoleFunctionKey( unsigned char param )
+bool DevConsoleFunctionKey( unsigned int param )
 {
 	if (g_devConsole == nullptr)
 	{

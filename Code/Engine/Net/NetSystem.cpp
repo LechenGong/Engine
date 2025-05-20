@@ -361,7 +361,7 @@ void NetSystem::BeginFrame()
 
 				std::string firstMessage = m_recvQueue.substr( 0, pos );
 				m_recvQueue.erase( 0, pos + 1 );
-				g_devConsole->Execute( firstMessage );
+				g_devConsole->Execute( firstMessage, false );
 				//DebuggerPrintf( "Message: %s\n", firstMessage.c_str() );
 			}
 		}
@@ -507,7 +507,7 @@ void NetSystem::BeginFrame()
 
 				std::string firstMessage = m_recvQueue.substr( 0, pos );
 				m_recvQueue.erase( 0, pos + 1 );
-				g_devConsole->Execute( firstMessage );
+				g_devConsole->Execute( firstMessage, false );
 				//DebuggerPrintf( "Message: %s\n", firstMessage.c_str() );
 			}
 		}

@@ -387,6 +387,12 @@
     <ClCompile Include="BehaviorTree\TreeNodes\CompositeNodes\ExecutionRandomSequence.cpp">
       <Filter>BehaviorTree\TreeNodes\CompositeNodes</Filter>
     </ClCompile>
+    <ClCompile Include="Core\HashedCaseInsensitiveString.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Animation\IKSolver.cpp">
+      <Filter>Animation</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Math\Vec2.hpp">
@@ -751,6 +757,12 @@
     </ClInclude>
     <ClInclude Include="BehaviorTree\TreeNodes\CompositeNodes\ExecutionRandomSequence.h">
       <Filter>BehaviorTree\TreeNodes\CompositeNodes</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\HashedCaseInsensitiveString.hpp">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Animation\IKSolver.hpp">
+      <Filter>Animation</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

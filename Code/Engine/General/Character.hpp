@@ -10,6 +10,7 @@
 #include "Engine/Math/Quat.hpp"
 #include "Engine/General/CharacterState.hpp"
 #include "Engine/General/Actor.hpp"
+#include "Engine/Math/RaycastUtil.hpp"
 
 class SkeletalMesh;
 class SkeletalMeshComponent;
@@ -55,6 +56,7 @@ public:
 	bool GetIsGrounded() const;
 
 	virtual float GetAboveGroundHeight() = 0;
+	virtual RaycastResult3D GetAboveGroundHeight( Vec3 const& pos ) = 0;
 
 	bool m_enableGravity = true;
 
@@ -69,6 +71,10 @@ protected:
 
 	float m_movementSpeed = 1.f;
 	float m_sprintParam = 2.f;
+
+	bool m_isUsingIK = false;
+	float m_leftFootGroundHeight = 0.f;
+	float m_rightFootGroundHeight = 0.f;
 
 public:
 	virtual void Update( float deltaSeconds ) override;

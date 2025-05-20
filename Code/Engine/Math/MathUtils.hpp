@@ -123,6 +123,7 @@ Vec3 const GetNearestPointOnZCylinder3D( Vec3 const& referencePos, Vec3 const& c
 Vec3 const GetNearestPointOnOBBToLineSegment3D( Vec3 const& lineSegStart, Vec3 const& lineSegEnd, OBB3 const& obb );
 
 Mat44 const GetLookAtMatrix( Vec3 forwardVec );
+Mat44 const CreateLookRotation( Vec3 const& forward, Vec3 const& up );
 Mat44 const GetBillboardMatrix( BillboardType billboardType, Mat44 const& cameraMatrix, const Vec3& billboardPosition, const Vec2& billboardScale );
 
 bool PushDiscOutOfFixedPoint2D( Vec2 & mobileDiscCenter, float discRadius , Vec2 const& fixedpoint );

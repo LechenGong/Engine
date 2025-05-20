@@ -130,6 +130,21 @@ bool JobSystem::HasUnfinishedJob()
 	return flag;
 }
 
+bool JobSystem::IsEmpty()
+{
+	m_queuedJobsMutex.lock();
+	m_claimedJobsMutex.lock();
+	m_completedJobsMutex.lock();
+
+	bool flag = !(m_queuedJobs.empty() && m_claimedJobs.empty() && m_completedJobs.empty());
+
+	m_queuedJobsMutex.unlock();
+	m_claimedJobsMutex.unlock();
+	m_completedJobsMutex.unlock();
+
+	return flag;
+}
+
 void JobSystem::CreateNewWorkers( int workerCount )
 {
 	for (int i = 0; i < workerCount; i++)
@@ -170,6 +185,10 @@ void JobWorker::ThreadMain()
 		{
 			claimedJob->Execute();
 			m_jobSysRef->FinishJob( claimedJob );
+		}
+		else
+		{
+			std::this_thread::sleep_for( std::chrono::microseconds( 100 ) );
 		}
 	}
 }

@@ -171,8 +171,9 @@ void SkeletalMesh::InterpolateTransform( KeyFrame* keyFrameBegin, float frameRat
 	}
 }
 
-void SkeletalMesh::UpdateJoints( std::vector<Joint> const& joints, std::vector<Mat44>& globalTransforms, float currentTime, AnimationSequence* currentAnimation, float previousTime/* = 0.f*/, AnimationSequence* previousAnimation/* = nullptr*/, float alpha/* = 0.f*/ )
+void SkeletalMesh::UpdateJoints( std::vector<Mat44>& globalTransforms, float currentTime, AnimationSequence* currentAnimation, float previousTime/* = 0.f*/, AnimationSequence* previousAnimation/* = nullptr*/, float alpha/* = 0.f*/ )
 {
+	std::vector<Joint> const& joints = m_skeleton.m_joints;
 	globalTransforms.clear();
 	globalTransforms.reserve( joints.size() );
 
@@ -207,8 +208,9 @@ void SkeletalMesh::UpdateJoints( std::vector<Joint> const& joints, std::vector<M
 	}
 }
 
-void SkeletalMesh::UpdateJoints( std::vector<Joint> const& joints, std::vector<Mat44>& globalTransforms, AnimationStateMachine* animStateMachine )
+void SkeletalMesh::UpdateJoints( std::vector<Mat44>& globalTransforms, AnimationStateMachine* animStateMachine )
 {
+	std::vector<Joint> const& joints = m_skeleton.m_joints;
 	std::vector<std::vector<Mat44>> transformsSets;
 
 	for (int i = 0; i < animStateMachine->GetOngoingAnimations().size(); i++)
@@ -227,7 +229,7 @@ void SkeletalMesh::UpdateJoints( std::vector<Joint> const& joints, std::vector<M
 		float crossfadeAlpha = ongoingAnimation.GetCrossfadeAlpha();
 
 		std::vector<Mat44> transforms;
-		UpdateJoints( m_skeleton.m_joints, transforms, currentTimeSeconds, currentAnimation, previousTimeSecond, previousAnimaiton, crossfadeAlpha);
+		UpdateJoints( transforms, currentTimeSeconds, currentAnimation, previousTimeSecond, previousAnimaiton, crossfadeAlpha);
 
 		if (i > 0) // Todo: can we optimize this?
 		{
@@ -267,6 +269,26 @@ void SkeletalMesh::UpdateJoints( std::vector<Joint> const& joints, std::vector<M
 			}
 		}
 	}
+}
+
+void SkeletalMesh::ApplyFootIK( std::vector<Mat44>& globalTransforms, FootIKConfig const& config, Vec3 const& target )
+{
+	int thighIdx = GetJointIndexByName( config.thighJointName );
+	int kneeIdx = GetJointIndexByName( config.kneeJointName );
+	int footIdx = GetJointIndexByName( config.footJointName );
+
+	Vec3 thighPos = globalTransforms[thighIdx].GetTranslation3D();
+	Vec3 kneePos = globalTransforms[kneeIdx].GetTranslation3D();
+	Vec3 footPos = globalTransforms[footIdx].GetTranslation3D();
+
+	Mat44 newThigh = globalTransforms[thighIdx];
+	Mat44 newKnee = globalTransforms[kneeIdx];
+	Mat44 newFoot = globalTransforms[footIdx];
+	IKSolver::SolveTwoBoneIK( thighPos, kneePos, footPos, target, newThigh, newKnee, newFoot );
+
+	globalTransforms[thighIdx] = newThigh;
+	globalTransforms[kneeIdx] = newKnee;
+	globalTransforms[footIdx] = newFoot;
 }
 
 void SkeletalMesh::ExportToXML( std::string const& filePath ) const

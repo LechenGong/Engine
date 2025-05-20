@@ -39,7 +39,9 @@ TreeNode* TreeNodeFactory::CreateNode( std::string typeName, BehaviorTree* bt, i
 	{
 		return iter->second( bt, selfIndex, parentIndex, location );
 	}
-	return nullptr;
+	LeafNode* newLeafNode = new LeafNode( bt, selfIndex, parentIndex, location );
+	newLeafNode->m_typeName = typeName;
+	return newLeafNode;
 }
 
 

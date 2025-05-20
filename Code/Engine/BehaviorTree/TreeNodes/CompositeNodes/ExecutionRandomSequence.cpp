@@ -2,11 +2,12 @@
 #include <random>
 
 #include "Engine/BehaviorTree/TreeNodes/CompositeNodes/ExecutionRandomSequence.h"
+#include "Engine/General/Character.hpp"
+#include "Engine/General/Controller.hpp"
 
 ExecutionRandomSequence::ExecutionRandomSequence( BehaviorTree* bt, int selfIndex, int parentIndex, int location /*= -1 */ )
 	: CompositeNode( bt, selfIndex, parentIndex, location )
 {
-
 }
 
 void ExecutionRandomSequence::InternalSpawn( [[maybe_unused]] const BehaviorTree::Context* btContext )
@@ -21,7 +22,7 @@ NodeStatus ExecutionRandomSequence::InternalTick(const BehaviorTree::Context* bt
 	int runningChildIndex = 0;
 	for (int i = 0; i < m_children.size(); i++)
 	{
-		if (m_children[i]->GetStatus() == NodeStatus::RUNNING)
+		if (btContext->chara->m_controller->GetNodeStates()[m_children[i]->GetIndex()] == NodeStatus::RUNNING)
 		{
 			runningChildIndex = i;
 			break;
@@ -35,18 +36,18 @@ NodeStatus ExecutionRandomSequence::InternalTick(const BehaviorTree::Context* bt
 
 		if (status == NodeStatus::RUNNING)
 		{
-			return m_status = NodeStatus::RUNNING;
+			return btContext->chara->m_controller->GetNodeStates()[GetIndex()] = NodeStatus::RUNNING;
 		}
 		else if (status == NodeStatus::FAILURE)
 		{
-			return m_status = NodeStatus::FAILURE;
+			return btContext->chara->m_controller->GetNodeStates()[GetIndex()] = NodeStatus::FAILURE;
 		}
 		else if (status == NodeStatus::BREAKING)
 		{
-			return m_status = (m_status == NodeStatus::INVALID) ? NodeStatus::BREAKING : m_status;
+			return btContext->chara->m_controller->GetNodeStates()[GetIndex()] = (btContext->chara->m_controller->GetNodeStates()[GetIndex()] == NodeStatus::INVALID) ? NodeStatus::BREAKING : btContext->chara->m_controller->GetNodeStates()[GetIndex()];
 		}
 	}
-	return m_status = NodeStatus::SUCCESS;
+	return btContext->chara->m_controller->GetNodeStates()[GetIndex()] = NodeStatus::SUCCESS;
 }
 
 std::string ExecutionRandomSequence::GetTypeName() const

@@ -277,6 +277,17 @@ bool AnimationStateMachine::StateSet::HasCurrentAnimationEnded() const
 	return currentAnimationTimer >= currentState->GetAnimation()->m_duration;
 }
 
+bool AnimationStateMachine::StateSet::HasCurrentAnimationReadyForCrossfade( float crossfadeDuration ) const
+{
+	if (!currentState)
+		ERROR_AND_DIE( "Current state is nullptr (should be initialized)" );
+
+	if (currentState->GetAnimation()->m_looping)
+		return true;
+
+	return currentAnimationTimer >= currentState->GetAnimation()->m_duration - crossfadeDuration;
+}
+
 bool AnimationStateMachine::StateSet::HasPreviousAnimationEnded() const
 {
 	if (!previousState)

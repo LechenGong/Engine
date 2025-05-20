@@ -58,7 +58,7 @@ public:
 	void DisplayScrollUp();
 	void DisplayScrollDown();
 
-	void Execute( std::string const& consoleCommandText );
+	void Execute( std::string const& consoleCommandText, bool echoInput = true );
 	void AddLine( Rgba8 const& color, std::string const& text );
 	void ResetLog();
 	void Render( AABB2 const& bounds, Renderer* rendererOverride = nullptr ) const;
@@ -98,5 +98,5 @@ private:
 bool PrintAllCommand();
 bool ClearScreen();
 bool PrintHistory();
-bool DevConsoleFunctionKey( unsigned char param );
-bool DevConsoleLiteralKey( unsigned char param );
+bool DevConsoleFunctionKey( unsigned int param );
+bool DevConsoleLiteralKey( unsigned int param );

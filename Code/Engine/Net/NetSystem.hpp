@@ -3,7 +3,6 @@
 #include <string>
 #include <queue>
 
-#include "Engine/Core/NamedStrings.hpp"
 
 struct NetSystemConfig
 {

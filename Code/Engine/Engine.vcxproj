@@ -511,6 +511,7 @@
     <ClCompile Include="Animation\AnimationSequence.cpp" />
     <ClCompile Include="Animation\AnimationState.cpp" />
     <ClCompile Include="Animation\AnimationStateMachine.cpp" />
+    <ClCompile Include="Animation\IKSolver.cpp" />
     <ClCompile Include="Audio\AudioSystem.cpp" />
     <ClCompile Include="BehaviorTree\BehaviorTree.cpp" />
     <ClCompile Include="BehaviorTree\Blackboard.cpp" />
@@ -532,6 +533,7 @@
     <ClCompile Include="Core\ErrorWarningAssert.cpp" />
     <ClCompile Include="Core\EventSystem.cpp" />
     <ClCompile Include="Core\FileUtil.cpp" />
+    <ClCompile Include="Core\HashedCaseInsensitiveString.cpp" />
     <ClCompile Include="Core\Image.cpp" />
     <ClCompile Include="Core\JobSystem.cpp" />
     <ClCompile Include="Core\NamedStrings.cpp" />
@@ -633,6 +635,7 @@
     <ClInclude Include="Animation\AnimationSequence.hpp" />
     <ClInclude Include="Animation\AnimationState.hpp" />
     <ClInclude Include="Animation\AnimationStateMachine.hpp" />
+    <ClInclude Include="Animation\IKSolver.hpp" />
     <ClInclude Include="Audio\AudioSystem.hpp" />
     <ClInclude Include="BehaviorTree\BehaviorTree.h" />
     <ClInclude Include="BehaviorTree\Blackboard.h" />
@@ -654,6 +657,7 @@
     <ClInclude Include="Core\ErrorWarningAssert.hpp" />
     <ClInclude Include="Core\EventSystem.hpp" />
     <ClInclude Include="Core\FileUtil.hpp" />
+    <ClInclude Include="Core\HashedCaseInsensitiveString.hpp" />
     <ClInclude Include="Core\Image.hpp" />
     <ClInclude Include="Core\JobSystem.hpp" />
     <ClInclude Include="Core\NamedStrings.hpp" />

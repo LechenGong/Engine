@@ -52,4 +52,5 @@ public:
 protected:
 	SceneComponent* m_rootComponent = nullptr;
 	ActorUID m_uid;
+	bool m_isEventRecipient = false;
 };

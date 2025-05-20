@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Engine/Math/Vec3.hpp"
+#include "Engine/BehaviorTree/Blackboard.h"
 #include "Engine/BehaviorTree/TreeNodes/TreeNode.h"
 
 class Character;
@@ -38,6 +39,8 @@ public:
 	virtual void SetIsFalling( bool flag ) = 0;
 
 public:
+	Blackboard m_blackboard;
+
 	BehaviorTree*& GetBehaviorTree() { return m_btTree; }
 	TreeNode*& GetLastRunningNode() { return m_lastRunningNode; }
 	TreeNode*& GetBreakingNode() { return m_breakingNode; }

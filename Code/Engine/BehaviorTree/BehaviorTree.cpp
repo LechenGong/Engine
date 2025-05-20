@@ -128,7 +128,7 @@ TreeNode* BehaviorTree::Find( int index )
 	return m_rootNode->Find( index );
 }
 
-void BehaviorTree::GenerateCoordinates( TreeNode* node, int x, int y )
+void BehaviorTree::GenerateCoordinates( TreeNode* node, int& x, int& y )
 {
 	node->x = x;
 	node->y = y;
@@ -140,11 +140,16 @@ void BehaviorTree::GenerateCoordinates( TreeNode* node, int x, int y )
 
 	if (!node->GetChildren().empty())
 	{
-		GenerateCoordinates( node->GetChildren()[0], x + 1, y );
+		x += 1;
+		GenerateCoordinates( node->GetChildren()[0], x, y );
+		x -= 1;
 	}
 	for (int i = 1; i < node->GetChildren().size(); i++)
 	{
-		GenerateCoordinates( node->GetChildren()[i], x + 1, y + i );
+		x += 1;
+		y += 1;
+		GenerateCoordinates( node->GetChildren()[i], x, y );
+		x -= 1;
 	}
 }
 
@@ -165,12 +170,14 @@ void BehaviorTree::Startup( [[maybe_unused]] Context const* btContext )
 void BehaviorTree::Execute( [[maybe_unused]] Context const* btContext  )
 {
 	if (btContext->chara->m_controller->IsBTFinished())
-		return;
+	{
+		btContext->chara->m_controller->IsBTFinished() = false;
+	}
 
 	NodeStatus status = m_rootNode->Execute( btContext );
 	if (status != NodeStatus::RUNNING && status != NodeStatus::INVALID && status != NodeStatus::BREAKING)
 	{
-		btContext->chara->m_controller->IsBTFinished() = true;
+		Abort( btContext );
 	}
 }
 

@@ -1,3 +1,4 @@
+#include "StringUtils.hpp"
 #include "Engine/Core/StringUtils.hpp"
 #include <stdarg.h>
 
@@ -40,11 +41,11 @@ const std::string Stringf( int maxLength, char const* format, ... )
 	return returnValue;
 }
 
-Strings Split( std::string const& str, std::string const& delimiter, bool skip_empty/* = false*/, int maxOperationTime/* = 999999*/ )
+Strings Split( std::string const& str, std::string const& delimiter, bool skip_empty/* = false*/, int maxOperations/* = 999999*/ )
 {
 	Strings elems;
 	std::string::size_type pos = 0, prev = 0;
-	while ((pos = str.find_first_of( delimiter, prev )) != std::string::npos && maxOperationTime)
+	while ((pos = str.find_first_of( delimiter, prev )) != std::string::npos && maxOperations)
 	{
 		if (pos > prev)
 		{
@@ -55,7 +56,7 @@ Strings Split( std::string const& str, std::string const& delimiter, bool skip_e
 			elems.emplace_back( "" );
 		}
 		prev = pos + 1;
-		maxOperationTime--;
+		maxOperations--;
 	}
 
 	if (prev < str.size())
@@ -65,9 +66,9 @@ Strings Split( std::string const& str, std::string const& delimiter, bool skip_e
 	return elems;
 }
 
-Strings Split( std::string const& str, char delimiter, bool skip_empty/* = false*/, int maxOperationTime/* = 999999*/ )
+Strings Split( std::string const& str, char delimiter, bool skip_empty/* = false*/, int maxOperations/* = 999999*/ )
 {
-	return Split( str, std::string( 1, delimiter ), skip_empty, maxOperationTime );
+	return Split( str, std::string( 1, delimiter ), skip_empty, maxOperations );
 }
 
 Strings SplitByLength( std::string const& str, int maxLength )
@@ -78,6 +79,163 @@ Strings SplitByLength( std::string const& str, int maxLength )
 		result.push_back( str.substr( i, maxLength ) );
 	}
 	return result;
+}
+
+Strings SplitWithQuotation( std::string const& str, char delimiter, bool skip_empty/* = false*/, bool remove_quotation/* = false*/, int maxOperations/* = 999999*/ )
+{
+	Strings elems;
+	std::string token;
+
+	bool inQuote = false;
+	bool escapeNext = false;
+	int splitCounter = 0;
+
+	for (int i = 0; i < str.length(); i++)
+	{
+		char chara = str[i];
+
+		if (escapeNext)
+		{
+			if (remove_quotation)
+			{
+				if (chara == '"' || chara == '\\')
+				{
+					token += chara;
+				}
+				else
+				{
+					token += '\\';
+					token += chara;
+				}
+			}
+			else
+			{
+				token += '\\';
+				token += chara;
+			}
+			escapeNext = false;
+			continue;
+		}
+
+		if (chara == '\\')
+		{
+			escapeNext = true;
+			continue;
+		}
+
+		if (chara == '"')
+		{
+			inQuote = !inQuote;
+			if (!remove_quotation)
+			{
+				token += '"';
+			}
+			continue;
+		}
+
+		if (chara == delimiter && !inQuote && splitCounter < maxOperations)
+		{
+			if (!(token.empty() && skip_empty))
+			{
+				elems.push_back( token );
+				token.clear();
+				++splitCounter;
+			}
+		}
+		else
+		{
+			token += chara;
+		}
+	}
+
+	if (!(token.empty() && skip_empty))
+	{
+		elems.push_back( token );
+	}
+
+	return elems;
+}
+
+
+Strings SplitWithQuotation( std::string const& str, std::string const& delimiter, bool skip_empty/* = false*/, bool remove_quotation/* = false*/, int maxOperations/* = 999999*/ )
+{
+	Strings elems;
+	std::string token;
+
+	bool inQuote = false;
+	bool escapeNext = false;
+	int splitCounter = 0;
+
+	size_t i = 0;
+
+	while (i < str.length())
+	{
+		char chara = str[i];
+
+		if (escapeNext)
+		{
+			if (remove_quotation)
+			{
+				if (chara == '"' || chara == '\\')
+				{
+					token += chara;
+				}
+				else
+				{
+					token += '\\'; // Preserve unknown escape
+					token += chara;
+				}
+			}
+			else
+			{
+				token += '\\';
+				token += chara;
+			}
+			escapeNext = false;
+			i++;
+			continue;
+		}
+
+		if (chara == '\\')
+		{
+			escapeNext = true;
+			i++;
+			continue;
+		}
+
+		if (chara == '"')
+		{
+			inQuote = !inQuote;
+			if (!remove_quotation)
+				token += '"';
+			i++;
+			continue;
+		}
+
+		if (!inQuote && delimiter.length() > 0 &&
+			str.compare( i, delimiter.length(), delimiter ) == 0 &&
+			splitCounter < maxOperations)
+		{
+			if (!(token.empty() && skip_empty))
+			{
+				elems.push_back( token );
+				token.clear();
+				splitCounter++;
+			}
+			i += delimiter.length();
+			continue;
+		}
+
+		token += chara;
+		i++;
+	}
+
+	if (!(token.empty() && skip_empty))
+	{
+		elems.push_back( token );
+	}
+
+	return elems;
 }
 
 std::string ToLower( std::string const& str )

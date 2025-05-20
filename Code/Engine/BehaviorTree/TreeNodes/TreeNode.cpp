@@ -61,7 +61,7 @@ NodeStatus TreeNode::Execute( [[maybe_unused]] const BehaviorTree::Context* btCo
 		{
 			InternalSpawn( btContext );
 		}
-		charaController->GetNodeStates()[m_index] = InternalTick( btContext );
+		charaController->GetNodeStates()[m_index] = this->InternalTick( btContext );
 
 		std::string message = "SetStatus " + std::to_string(m_index) + " " + std::to_string((int)charaController->GetNodeStates()[m_index]);
 		g_netSystem->AddToSendQueue( message.c_str() );
@@ -185,6 +185,10 @@ void TreeNode::ResetStatus( [[maybe_unused]] const BehaviorTree::Context* btCont
 	Controller*& charaController = btContext->chara->m_controller;
 
 	charaController->GetNodeStates()[m_index] = NodeStatus::INVALID;
+
+	std::string message = "SetStatus " + std::to_string( m_index ) + " " + std::to_string( (int)NodeStatus::INVALID );
+	g_netSystem->AddToSendQueue( message.c_str() );
+
 	for (auto child : m_children)
 	{
 		child->ResetStatus( btContext );

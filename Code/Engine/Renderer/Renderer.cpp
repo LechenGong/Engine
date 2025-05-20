@@ -3,6 +3,7 @@
 #include <d3d11.h>
 #include <d3dcompiler.h>
 #include <dxgi.h>
+#include <mutex>
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -27,6 +28,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "ThirdParty/stbi/stb_image.h"
 #include "Engine/Model/ModelUtility.hpp"
+
+std::mutex deviceContextMutex;
 
 Renderer* g_theRenderer = nullptr;
 
@@ -1365,9 +1368,13 @@ Texture* Renderer::CreateTextureFromImage( Image const& image, char const* name 
 		ERROR_AND_DIE( Stringf( "Could not create shader resource view from image for file \"%s\".", image.GetImageFilePath().c_str() ) );
 	}
 
+	deviceContextMutex.lock();
+
 	m_deviceContext->UpdateSubresource( newTexture->m_texture, 0, nullptr, image.GetRawData(), 4 * image.GetDimensions().x, 0 );
 
 	m_deviceContext->GenerateMips( newTexture->m_shaderResourceView );
+
+	deviceContextMutex.unlock();
 
 	return newTexture;
 }
@@ -1544,6 +1551,13 @@ void Renderer::SetCameraConstants( Mat44 const& projectionMatrix, Mat44 const& v
  	std::string imageFilePath = std::string(fontFilePathNameWithNoExtension);
  	Texture& diffuseMap = *CreateOrGetTextureFromFile( imageFilePath.c_str() );
  	return new BitmapFont( imageFilePath.c_str(), diffuseMap );
+ }
+ BitmapFont* Renderer::CreateCustomBitmapFontFromXml( char const* xmlPath, char const* imagePath )
+ {
+	 Texture* newBitMapFontTex = CreateTextureFromFile( imagePath );
+	 BitmapFont* bitMapFont = new BitmapFont( xmlPath, imagePath, *newBitMapFontTex );
+	 m_loadedFonts.push_back( bitMapFont );
+	 return bitMapFont;
  }
 // 
 // //------------------------------------------------------------------------------------------------

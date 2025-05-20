@@ -14,6 +14,10 @@ Actor::Actor( Actor* parentActor )
 
 Actor::~Actor()
 {
+	if (m_isEventRecipient && g_eventSystem)
+	{
+		g_eventSystem->UnsubscribeAllMethodsForObject( this );
+	}
 	delete m_rootComponent;
 }
 

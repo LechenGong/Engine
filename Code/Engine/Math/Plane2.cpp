@@ -23,6 +23,36 @@ bool Plane2::IsPointInFrontOfPlane( Vec2 const& point ) const
 	return DotProduct2D( point, m_normal ) > m_distanceFromOrigin;
 }
 
+bool Plane2::IsRayInward( Vec2 const& rayFwd ) const
+{
+	float dotP = DotProduct2D( rayFwd, m_normal );
+	if (dotP < 0.f)
+	{
+		return true;
+	}
+	return false;
+}
+
+bool Plane2::GetIntersection( Vec2& intersection, Vec2 const& rayStart, Vec2 const& rayForward, float rayLength, float& intersectionDist ) const
+{
+	float denominator = DotProduct2D( m_normal, rayForward );
+
+	if (denominator == 0.0f)
+	{
+		return false;
+	}
+
+	float t = (m_distanceFromOrigin - DotProduct2D( m_normal, rayStart )) / denominator;
+
+	if (t < 0.0f || t > rayLength)
+	{
+		return false;
+	}
+	intersectionDist = t;
+	intersection = rayStart + t * rayForward;
+	return true;
+}
+
 bool Plane2::DoPlane2Intersect( Plane2 const& planeA, Plane2 const& planeB )
 {
 	float det = planeA.m_normal.x * planeB.m_normal.y - planeA.m_normal.y * planeB.m_normal.x;

@@ -68,6 +68,7 @@ struct Mat44
 	Mat44 const GetOrthonormalInverse() const;
 	Mat44 const GetInverse() const;
 
+	void SetIdentity();
 	void SetElement( int i, int j, float value );
 	void SetTranslation2D( Vec2 const& translationXY );
 	void SetTranslation3D( Vec3 const& translationXYZ );

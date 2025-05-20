@@ -59,6 +59,8 @@ public:
 
 	bool HasUnfinishedJob();
 
+	bool IsEmpty();
+
 private:
 	void CreateNewWorkers( int workerCount );
 	void DestroyWorkers();

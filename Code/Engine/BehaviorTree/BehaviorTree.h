@@ -22,7 +22,7 @@ public:
 	int GetSize() const { return m_size; }
 	//void AddChild( TreeNode* newNode, int parentIndex, int location );
 
-	void GenerateCoordinates( TreeNode* node, int x, int y );
+	void GenerateCoordinates( TreeNode* node, int& x, int& y );
 
 public:
 	struct Context

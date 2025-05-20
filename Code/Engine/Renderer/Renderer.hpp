@@ -204,6 +204,7 @@ public:
 
 	BitmapFont* CreateOrGetBitmapFont( const char* imageFilePath );
  	BitmapFont* CreateBitmapFontFromFile( char const* imageFilePath );
+	BitmapFont* CreateCustomBitmapFontFromXml( char const* xmlPath, char const* imagePath );
 
 public:
 	ID3D11Device* GetD3D11Device() { return m_device; }

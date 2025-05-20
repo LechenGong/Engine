@@ -30,32 +30,39 @@ void EventSystem::EndFrame()
 {
 }
 
-void EventSystem::SubscribeEventCallBackFunc( std::string const& eventName, void(*functionPtr)(), int numberOfArgs, std::string formatting )
+void EventSystem::SubscribeEventCallBackFunc( std::string const& eventName, void(*legacyFunctionPtr)(), int numberOfArgs, std::string formatting )
 {
+	UNUSED( numberOfArgs );
+	UNUSED( formatting );
 	m_subscriptionMutex.lock();
-	for (EventSubscription& subIndex : m_subscriptionListByName[eventName])
+	for (EventSubscription& registeredFunction : m_subscriptionListByName[eventName])
 	{
-		if (subIndex.functionPtr == nullptr)
+		if (registeredFunction.legacyFunctionPtr == nullptr &&
+			registeredFunction.functionPtr == nullptr)
 		{
-			subIndex.functionPtr = functionPtr;
-			subIndex.numberOfArgs = numberOfArgs;
-			subIndex.formatting = formatting;
+			registeredFunction.legacyFunctionPtr = legacyFunctionPtr;
+			registeredFunction.isLegacy = true;
+// 			subIndex.numberOfArgs = numberOfArgs;
+// 			subIndex.formatting = formatting;
 			m_subscriptionMutex.unlock();
 			return;
 		}
 	}
-	m_subscriptionListByName[eventName].push_back( EventSubscription{ functionPtr, numberOfArgs, formatting } );
+	EventSubscription newEvent;
+	newEvent.legacyFunctionPtr = legacyFunctionPtr;
+	newEvent.isLegacy = true;
+	m_subscriptionListByName[eventName].push_back( newEvent );
 	m_subscriptionMutex.unlock();
 }
 
-void EventSystem::UnsubscribeEventCallbackFunc( std::string const& eventName, void(*functionPtr)() )
+void EventSystem::UnsubscribeEventCallbackFunc( std::string const& eventName, void(*legacyFunctionPtr)() )
 {
 	m_subscriptionMutex.lock();
 	for (EventSubscription& subIndex : m_subscriptionListByName[eventName])
 	{
-		if (subIndex.functionPtr == functionPtr)
+		if (subIndex.legacyFunctionPtr == legacyFunctionPtr)
 		{
-			subIndex.functionPtr = nullptr;
+			subIndex.legacyFunctionPtr = nullptr;
 			m_subscriptionMutex.unlock();
 			return;
 		}
@@ -114,7 +121,7 @@ int EventSystem::FireEvent( Strings args )
 		bool flag = false;
 		if (eventName == "pause")
 		{
-			flag = reinterpret_cast<bool(*)()>(subIndex.functionPtr)();
+			flag = reinterpret_cast<bool(*)()>(subIndex.legacyFunctionPtr)();
 			counter++;
 			if (flag)
 			{
@@ -124,7 +131,7 @@ int EventSystem::FireEvent( Strings args )
 		}
 		else if (eventName == "shutdown")
 		{
-			flag = reinterpret_cast<bool(*)()>(subIndex.functionPtr)();
+			flag = reinterpret_cast<bool(*)()>(subIndex.legacyFunctionPtr)();
 			counter++;
 			if (flag)
 			{
@@ -134,7 +141,7 @@ int EventSystem::FireEvent( Strings args )
 		}
 		else if (eventName == "control")
 		{
-			flag = reinterpret_cast<bool(*)()>(subIndex.functionPtr)();
+			flag = reinterpret_cast<bool(*)()>(subIndex.legacyFunctionPtr)();
 			counter++;
 			if (flag)
 			{
@@ -144,7 +151,7 @@ int EventSystem::FireEvent( Strings args )
 		}
 		else if (eventName == "help")
 		{
-			flag = reinterpret_cast<bool(*)()>(subIndex.functionPtr)();
+			flag = reinterpret_cast<bool(*)()>(subIndex.legacyFunctionPtr)();
 			counter++;
 			if (flag)
 			{
@@ -154,7 +161,7 @@ int EventSystem::FireEvent( Strings args )
 		}
 		else if (eventName == "history")
 		{
-			flag = reinterpret_cast<bool(*)()>(subIndex.functionPtr)();
+			flag = reinterpret_cast<bool(*)()>(subIndex.legacyFunctionPtr)();
 			counter++;
 			if (flag)
 			{
@@ -164,7 +171,7 @@ int EventSystem::FireEvent( Strings args )
 		}
 		else if (eventName == "clear")
 		{
-			flag = reinterpret_cast<bool(*)()>(subIndex.functionPtr)();
+			flag = reinterpret_cast<bool(*)()>(subIndex.legacyFunctionPtr)();
 			counter++;
 			if (flag)
 			{
@@ -174,7 +181,7 @@ int EventSystem::FireEvent( Strings args )
 		}
 		else if (eventName == "DRClear")
 		{
-			flag = reinterpret_cast<bool(*)()>(subIndex.functionPtr)();
+			flag = reinterpret_cast<bool(*)()>(subIndex.legacyFunctionPtr)();
 			counter++;
 			if (flag)
 			{
@@ -184,7 +191,7 @@ int EventSystem::FireEvent( Strings args )
 		}
 		else if (eventName == "DRToggle")
 		{
-			flag = reinterpret_cast<bool(*)()>(subIndex.functionPtr)();
+			flag = reinterpret_cast<bool(*)()>(subIndex.legacyFunctionPtr)();
 			counter++;
 			if (flag)
 			{
@@ -194,7 +201,7 @@ int EventSystem::FireEvent( Strings args )
 		}
 		else if (eventName == "funcinputdown")
 		{
-			flag = reinterpret_cast<bool(*)(unsigned int)>(subIndex.functionPtr)((unsigned int)std::stoul( args[1] ));
+			flag = reinterpret_cast<bool(*)(unsigned int)>(subIndex.legacyFunctionPtr)((unsigned int)std::stoul( args[1] ));
 			counter++;
 			if (flag)
 			{
@@ -204,7 +211,7 @@ int EventSystem::FireEvent( Strings args )
 		}
 		else if (eventName == "funcinputup")
 		{
-			flag = reinterpret_cast<bool(*)(unsigned int)>(subIndex.functionPtr)((unsigned int)std::stod( args[1] ));
+			flag = reinterpret_cast<bool(*)(unsigned int)>(subIndex.legacyFunctionPtr)((unsigned int)std::stod( args[1] ));
 			counter++;
 			if (flag)
 			{
@@ -214,7 +221,7 @@ int EventSystem::FireEvent( Strings args )
 		}
 		else if (eventName == "killallenemies")
 		{
-			flag = reinterpret_cast<bool(*)()>(subIndex.functionPtr)();
+			flag = reinterpret_cast<bool(*)()>(subIndex.legacyFunctionPtr)();
 			counter++;
 			if (flag)
 			{
@@ -224,7 +231,7 @@ int EventSystem::FireEvent( Strings args )
 		}
 		else if (eventName == "litinput")
 		{
-			flag = reinterpret_cast<bool(*)(unsigned int)>(subIndex.functionPtr)((unsigned int)std::stoi( args[1] ));
+			flag = reinterpret_cast<bool(*)(unsigned int)>(subIndex.legacyFunctionPtr)((unsigned int)std::stoi( args[1] ));
 			counter++;
 			if (flag)
 			{
@@ -234,7 +241,7 @@ int EventSystem::FireEvent( Strings args )
 		}
 		else if (eventName == "set")
 		{
-			flag = reinterpret_cast<bool(*)(char const*, float)>(subIndex.functionPtr)(args[1].c_str(), stof( args[2] ));
+			flag = reinterpret_cast<bool(*)(char const*, float)>(subIndex.legacyFunctionPtr)(args[1].c_str(), stof( args[2] ));
 			counter++;
 			if (flag)
 			{
@@ -244,7 +251,7 @@ int EventSystem::FireEvent( Strings args )
 		}
 		else if (eventName == "LoadGameConfig")
 		{
-			flag = reinterpret_cast<bool(*)(char const*)>(subIndex.functionPtr)(args[1].c_str());
+			flag = reinterpret_cast<bool(*)(char const*)>(subIndex.legacyFunctionPtr)(args[1].c_str());
 			counter++;
 			if (flag)
 			{

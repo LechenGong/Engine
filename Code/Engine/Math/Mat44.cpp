@@ -481,6 +481,14 @@ Mat44 const Mat44::GetInverse() const
 	return inv;
 }
 
+void Mat44::SetIdentity()
+{
+	m_values[Ix] = 1; m_values[Jx] = 0; m_values[Kx] = 0; m_values[Tx] = 0;
+	m_values[Iy] = 0; m_values[Jy] = 1; m_values[Ky] = 0; m_values[Ty] = 0;
+	m_values[Iz] = 0; m_values[Jz] = 0; m_values[Kz] = 1; m_values[Tz] = 0;
+	m_values[Iw] = 0; m_values[Jw] = 0; m_values[Kw] = 0; m_values[Tw] = 1;
+}
+
 void Mat44::SetElement( int i, int j, float value )
 {
 	m_values[j * 4 + i] = value;

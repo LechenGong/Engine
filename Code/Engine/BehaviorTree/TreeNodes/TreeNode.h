@@ -29,10 +29,10 @@ public:
 	virtual void ParseDataFromXml( XmlElement* xmlElement );
 	virtual void ExportAttributeToXml( XmlElement* xmlElement );
 
-	NodeStatus Execute( const BehaviorTree::Context* btContext );
-	virtual void InternalSpawn( [[maybe_unused]] const BehaviorTree::Context* btContext ) {};
+	NodeStatus Execute( [[maybe_unused]] const BehaviorTree::Context* btContext );
+	virtual void InternalSpawn( [[maybe_unused]] const BehaviorTree::Context* btContext ) = 0;
 	virtual NodeStatus InternalTick( [[maybe_unused]] const BehaviorTree::Context* btContext ) = 0;
-	virtual void InternalTerminate( [[maybe_unused]] const BehaviorTree::Context* btContext ) {};
+	virtual void InternalTerminate( [[maybe_unused]] const BehaviorTree::Context* btContext ) = 0;
 
 	virtual std::string GetTypeName() const;
 

@@ -7,6 +7,7 @@
 #include "Engine/Model/Vertex_Anim.hpp"
 #include "Engine/Model/ModelUtility.hpp"
 #include "Engine/General/Actor.hpp"
+#include "Engine/Animation/IKSolver.hpp"
 
 class VertexBuffer;
 class IndexBuffer;
@@ -42,8 +43,10 @@ protected:
 	void CrossfadeInterpolateTransform( KeyFrame* leaveKeyframeBegin, float leaveFrameRate, float animationLeaveTimer, KeyFrame* enterKeyframeBegin, float enterFrameRate, float animationEnterTimer, float factor, Mat44& interpolatedTransform );
 	void InterpolateTransform( KeyFrame* keyFrameBegin, float frameRate, float currentTime, Mat44& interpolatedTransform );
 
-	void UpdateJoints( std::vector<Joint> const& joints, std::vector<Mat44>& globalTransforms, float currentTime, AnimationSequence* currentAnimation, float previousTime = 0.f, AnimationSequence* previousAnimation = nullptr, float alpha = 0.f );
-	void UpdateJoints( std::vector<Joint> const& joints, std::vector<Mat44>& globalTransforms, AnimationStateMachine* animStateMachine );
+	void UpdateJoints( std::vector<Mat44>& globalTransforms, float currentTime, AnimationSequence* currentAnimation, float previousTime = 0.f, AnimationSequence* previousAnimation = nullptr, float alpha = 0.f );
+	void UpdateJoints( std::vector<Mat44>& globalTransforms, AnimationStateMachine* animStateMachine );
+
+	void ApplyFootIK( std::vector<Mat44>& globalTransforms, FootIKConfig const& config, Vec3 const& target );
 
 public:
 	void ExportToXML( std::string const& filePath ) const;

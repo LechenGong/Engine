@@ -183,12 +183,81 @@ bool RaycastAABB2D( RaycastResult2D& result, Vec2 startPos, Vec2 fwdNormal, floa
 
 bool RaycastConvex2D( RaycastResult2D& result, Vec2 startPos, Vec2 fwdNormal, float maxDist, ConvexHull2 convexHull2 )
 {
-	UNUSED( result );
-	UNUSED( startPos );
-	UNUSED( fwdNormal );
-	UNUSED( maxDist );
-	UNUSED( convexHull2 );
-	return false;
+	Vec2 lastInwardIntersection;
+	Vec2 firstOutwardIntersection;
+	float maxInwardIntersectDist = 0.f;
+	float minOutwardIntersectDist = 99999.f;
+	int maxInwardIndex = 0;
+	bool hasAnyIntersection = false;
+	bool hasAnyInwardIntersection = false;
+	bool hasAnyOutwardIntersection = false;
+
+	for (int i = 0; i < convexHull2.m_boundingPlanes.size(); i++)
+	{
+		Plane2 const& plane = convexHull2.m_boundingPlanes[i];
+		Vec2 intersection;
+		float intersectDist = 0.f;
+		if (plane.GetIntersection( intersection, startPos, fwdNormal, maxDist, intersectDist ))
+		{
+			hasAnyIntersection = true;
+			if (plane.IsRayInward( fwdNormal ))
+			{
+				hasAnyInwardIntersection = true;
+				if (intersectDist > maxInwardIntersectDist)
+				{
+					maxInwardIntersectDist = intersectDist;
+					lastInwardIntersection = intersection;
+					maxInwardIndex = i;
+				}
+			}
+			else
+			{
+				hasAnyOutwardIntersection = true;
+				if (intersectDist < minOutwardIntersectDist)
+				{
+					minOutwardIntersectDist = intersectDist;
+					firstOutwardIntersection = intersection;
+				}
+			}
+		}
+	}
+
+	if (!hasAnyIntersection)
+	{
+		result.m_didImpact = false;
+		return false;
+	}
+
+	if (convexHull2.IsPointInside( startPos ))
+	{
+		result.m_impactPos = startPos;
+		result.m_impactDist = 0.f;
+		result.m_impactNormal = -fwdNormal;
+		result.m_didImpact = true;
+		return true;
+	}
+
+	if (!hasAnyOutwardIntersection)
+	{
+		firstOutwardIntersection = startPos + fwdNormal * maxDist;
+	}
+	if (!hasAnyInwardIntersection)
+	{
+		result.m_didImpact = false;
+		return false;
+	}
+	Vec2 midPoint = (lastInwardIntersection + firstOutwardIntersection) / 2.f;
+	if (!convexHull2.IsPointInside( midPoint ))
+	{
+		result.m_didImpact = false;
+		return false;
+	}
+
+	result.m_impactPos = lastInwardIntersection;
+	result.m_impactDist = maxInwardIntersectDist;
+	result.m_impactNormal = convexHull2.m_boundingPlanes[maxInwardIndex].m_normal;
+	result.m_didImpact = true;
+	return true;
 }
 
 bool RaycastGridFirst2D( RaycastResult2D& result, Vec2 startPos, Vec2 fwdNormal, float maxDist, void const* gridSolidity, int gridLength, int gridWidth )
