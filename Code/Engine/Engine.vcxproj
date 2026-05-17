@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="DebugInline|Win32">
@@ -551,6 +551,7 @@
     <ClCompile Include="General\ActorUID.cpp" />
     <ClCompile Include="General\Character.cpp" />
     <ClCompile Include="General\CharacterDefinition.cpp" />
+    <ClCompile Include="General\CharacterMovementComponent.cpp" />
     <ClCompile Include="General\CharacterState.cpp" />
     <ClCompile Include="General\Controller.cpp" />
     <ClCompile Include="General\MeshT.cpp" />
@@ -675,6 +676,7 @@
     <ClInclude Include="General\ActorUID.hpp" />
     <ClInclude Include="General\Character.hpp" />
     <ClInclude Include="General\CharacterDefinition.hpp" />
+    <ClInclude Include="General\CharacterMovementComponent.hpp" />
     <ClInclude Include="General\CharacterState.hpp" />
     <ClInclude Include="General\Controller.hpp" />
     <ClInclude Include="General\MeshT.hpp" />

@@ -21,10 +21,12 @@ class Texture;
 class Renderer;
 class Controller;
 class ShapeComponent;
+class CharacterMovementComponent;
 struct CollisionInfo;
 
 class Character : public Actor
 {
+	friend class CharacterMovementComponent;
 public:
 	Character();
 	Character( std::string name, SkeletalMesh* skeletalMesh );
@@ -57,6 +59,8 @@ public:
 
 	virtual float GetAboveGroundHeight() = 0;
 	virtual RaycastResult3D GetAboveGroundHeight( Vec3 const& pos ) = 0;
+	virtual bool DoesBoundingCollisionOverlapWorldAt( Vec3 const& actorWorldPosition ) const;
+	virtual Vec3 GetGroundProbePositionAt( Vec3 const& actorWorldPosition ) const;
 
 	bool m_enableGravity = true;
 
@@ -111,10 +115,14 @@ public:
 	std::string GetName() { return m_name; }
 
 protected:
+	void MoveWithCollision( Vec3 const& worldDisplacement );
+	bool TryStartStepFromBlockedMove();
+	bool IsStepping() const;
 	virtual void CameraArmCollisionCheck();
 	virtual void ComponentCollisionCheck();
 
 	SkeletalMeshComponent* m_skeletalMeshComponent;
+	CharacterMovementComponent* m_movementComponent = nullptr;
 	std::vector<bool> m_collisionsEnabled;
 
 	float m_mass = 100.f;

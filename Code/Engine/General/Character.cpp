@@ -12,6 +12,7 @@
 #include "Engine/General/MeshT.hpp"
 #include "Engine/Renderer/Texture.hpp"
 #include "Engine/General/Controller.hpp"
+#include "Engine/General/CharacterMovementComponent.hpp"
 #include "Engine/General/ShapeComponents/CapsuleComponent.hpp"
 #include "Engine/General/ShapeComponents/SphereComponent.hpp"
 #include "Engine/Core/DebugRenderSystem.hpp"
@@ -24,11 +25,13 @@ Character::Character()
 	: Actor()
 {
 	g_eventSystem->SubscribeEventCallBackFunc( "toggleCollision", &ToggleCollision );
+	m_movementComponent = new CharacterMovementComponent( this );
 }
 
 Character::Character( std::string name, SkeletalMesh* skeletalMesh )
 	: Actor()
 {
+	m_movementComponent = new CharacterMovementComponent( this );
 	if (!GetSkeletalMeshComponent() && !GetSkeletalMesh())
 	{
 		m_name = name;
@@ -45,6 +48,7 @@ Character::Character( std::string name, SkeletalMesh* skeletalMesh )
 Character::Character( std::string name, std::vector<MeshT*> meshes, Skeleton const& skeleton, std::map<std::string, Texture*> textures )
 	: Actor()
 {
+	m_movementComponent = new CharacterMovementComponent( this );
 	UNUSED( textures );
 	m_name = name;
 	SetSkeletalMesh( new SkeletalMesh( meshes, skeleton ) );
@@ -57,6 +61,7 @@ Character::Character( std::string name, std::vector<MeshT*> meshes, Skeleton con
 
 Character::~Character()
 {
+	delete m_movementComponent;
 	delete m_skeletalMeshComponent;
 }
 
@@ -85,6 +90,35 @@ bool Character::GetIsGrounded() const
 	return m_isGrounded;
 }
 
+void Character::MoveWithCollision( Vec3 const& worldDisplacement )
+{
+	if (m_movementComponent)
+	{
+		m_movementComponent->MoveWithCollision( worldDisplacement );
+	}
+}
+
+bool Character::TryStartStepFromBlockedMove()
+{
+	return m_movementComponent && m_movementComponent->TryStartStepFromBlockedMove();
+}
+
+bool Character::IsStepping() const
+{
+	return m_movementComponent && m_movementComponent->IsStepping();
+}
+
+bool Character::DoesBoundingCollisionOverlapWorldAt( Vec3 const& actorWorldPosition ) const
+{
+	UNUSED( actorWorldPosition );
+	return false;
+}
+
+Vec3 Character::GetGroundProbePositionAt( Vec3 const& actorWorldPosition ) const
+{
+	return actorWorldPosition;
+}
+
 void Character::Update( float deltaSeconds )
 {
 	if (m_controller)
@@ -95,6 +129,10 @@ void Character::Update( float deltaSeconds )
 	if (m_animController)
 	{
 		m_animController->Update( deltaSeconds );
+	}
+	if (m_movementComponent)
+	{
+		m_movementComponent->Update( deltaSeconds );
 	}
 
 	if (!m_controller)
@@ -110,8 +148,8 @@ void Character::Update( float deltaSeconds )
 				{
 					Vec3 rootTranslation = currentAnimation->GetRootTranslationAtTime( currentAnimationClock, deltaSeconds );
 					
-					Vec3 position = GetActorLocalPosition() + GetActorLocalTransform().TransformVectorQuantity3D( rootTranslation * GetSkeletalMeshComponent()->GetLocalScale() );
-					SetActorLocalPosition( position );
+					Vec3 movementDelta = GetActorLocalTransform().TransformVectorQuantity3D( rootTranslation * GetSkeletalMeshComponent()->GetLocalScale() );
+					MoveWithCollision( movementDelta );
 				}
 				if (currentAnimation->m_rootRotation.size() > 0)
 				{
@@ -127,7 +165,10 @@ void Character::Update( float deltaSeconds )
 				AnimationSequence* previousAnimaiton = (animStateMachine->GetOngoingAnimation( 0 ).GetPreviousState()) ? animStateMachine->GetOngoingAnimation( 0 ).GetPreviousState()->GetAnimation() : nullptr;
 				float crossfadeAlpha = animStateMachine->GetOngoingAnimation( 0 ).GetCrossfadeAlpha();
 				GetSkeletalMesh()->UpdateJoints( GetSkeletalMeshComponent()->GetSkeletonGlobalTransform(), currentTimeSeconds, currentAnimation, previousTimeSecond, previousAnimaiton, crossfadeAlpha );
-				ComponentCollisionCheck();
+				if (!IsStepping())
+				{
+					ComponentCollisionCheck();
+				}
 			}
 		}
 		return;
@@ -160,9 +201,9 @@ void Character::Update( float deltaSeconds )
 	{
 		Vec3 rootTranslation = currentAnimation->GetRootTranslationAtTime( currentAnimationClock, deltaSeconds );
 		//DebugAddMessage( rootTranslation.ToString(), deltaSeconds, Rgba8::GREEN, Rgba8::GREEN );
-		Vec3 position = GetActorLocalPosition() + GetActorLocalTransform().TransformVectorQuantity3D( rootTranslation * GetSkeletalMeshComponent()->GetLocalScale() );
+		Vec3 movementDelta = GetActorLocalTransform().TransformVectorQuantity3D( rootTranslation * GetSkeletalMeshComponent()->GetLocalScale() );
 		//Vec3 position = GetActorLocalPosition() + rootTranslation * GetSkeletalMeshComponent()->GetLocalScale();
-		SetActorLocalPosition( position );
+		MoveWithCollision( movementDelta );
 	}
 
 
@@ -250,9 +291,11 @@ void Character::Update( float deltaSeconds )
 		}
 	}
 
-	SetIsGrounded( false );
-
-	ComponentCollisionCheck();
+	if (!IsStepping())
+	{
+		SetIsGrounded( false );
+		ComponentCollisionCheck();
+	}
 
 	if (!GetIsGrounded())
 	{
@@ -275,8 +318,7 @@ void Character::Update( float deltaSeconds )
 		{
 			m_velocity += Vec3( 0.f, 0.f, -10.f ) * fixedPhysicsDeltaTime;
 			//m_velocity.z = Clamp( m_velocity.z, -50.f, 99999.f );
-			SetActorWorldPosition( GetActorWorldPosition() + m_velocity * fixedPhysicsDeltaTime );
-			ComponentCollisionCheck();
+			MoveWithCollision( m_velocity * fixedPhysicsDeltaTime );
 		}
 
 		m_physicsTimer -= fixedPhysicsDeltaTime;
