@@ -46,7 +46,7 @@ protected:
 	void UpdateJoints( std::vector<Mat44>& globalTransforms, float currentTime, AnimationSequence* currentAnimation, float previousTime = 0.f, AnimationSequence* previousAnimation = nullptr, float alpha = 0.f );
 	void UpdateJoints( std::vector<Mat44>& globalTransforms, AnimationStateMachine* animStateMachine );
 
-	void ApplyFootIK( std::vector<Mat44>& globalTransforms, FootIKConfig const& config, Vec3 const& target );
+	void ApplyFootIK( std::vector<Mat44>& globalTransforms, FootIKConfig const& config, Vec3 const& target, Vec3 const& groundNormal, float ikWeight );
 
 public:
 	void ExportToXML( std::string const& filePath ) const;

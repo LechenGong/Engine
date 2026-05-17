@@ -30,3 +30,7 @@
 *.exe
 *.out
 *.app
+
+# Third-party dependencies
+Code/ThirdParty/
+Code/Thirdparty/

@@ -16,6 +16,73 @@
 #include "Engine/Renderer/Material.hpp"
 #include "Engine/Renderer/Shader.hpp"
 #include "Engine/Animation/AnimationController.hpp"
+#include "Engine/Math/MathUtils.hpp"
+#include "Engine/Math/Quat.hpp"
+
+namespace
+{
+constexpr float FOOT_IK_EPSILON = 0.0001f;
+
+Vec3 GetSafeNormalized( Vec3 const& vector, Vec3 const& fallback )
+{
+	if (vector.GetLengthSquared() > FOOT_IK_EPSILON * FOOT_IK_EPSILON)
+	{
+		return vector.GetNormalized();
+	}
+
+	if (fallback.GetLengthSquared() > FOOT_IK_EPSILON * FOOT_IK_EPSILON)
+	{
+		return fallback.GetNormalized();
+	}
+
+	return Vec3::UP;
+}
+
+Vec3 RejectFromAxis( Vec3 const& vector, Vec3 const& axis )
+{
+	return vector - GetProjectedOnto3D( vector, axis );
+}
+
+Quat GetRotationOnlyQuat( Mat44 const& transform )
+{
+	Mat44 rotationOnly;
+	rotationOnly.SetIJKT3D(
+		GetSafeNormalized( transform.GetIBasis3D(), Vec3( 1.f, 0.f, 0.f ) ),
+		GetSafeNormalized( transform.GetJBasis3D(), Vec3( 0.f, 1.f, 0.f ) ),
+		GetSafeNormalized( transform.GetKBasis3D(), Vec3( 0.f, 0.f, 1.f ) ),
+		Vec3::ZERO );
+	return Quat( rotationOnly ).GetNormalized();
+}
+
+Quat GetFromToRotation( Vec3 const& fromDir, Vec3 const& toDir, Vec3 const& fallbackAxis )
+{
+	Vec3 from = GetSafeNormalized( fromDir, Vec3::UP );
+	Vec3 to = GetSafeNormalized( toDir, from );
+
+	float dot = Clamp( DotProduct3D( from, to ), -1.f, 1.f );
+	if (dot > 1.f - FOOT_IK_EPSILON)
+	{
+		return Quat::IDENTITY;
+	}
+
+	Vec3 axis = CrossProduct3D( from, to );
+	if (axis.GetLengthSquared() <= FOOT_IK_EPSILON * FOOT_IK_EPSILON)
+	{
+		axis = RejectFromAxis( fallbackAxis, from );
+		if (axis.GetLengthSquared() <= FOOT_IK_EPSILON * FOOT_IK_EPSILON)
+		{
+			axis = RejectFromAxis( Vec3( 1.f, 0.f, 0.f ), from );
+		}
+		if (axis.GetLengthSquared() <= FOOT_IK_EPSILON * FOOT_IK_EPSILON)
+		{
+			axis = RejectFromAxis( Vec3( 0.f, 1.f, 0.f ), from );
+		}
+	}
+
+	axis = GetSafeNormalized( axis, Vec3( 1.f, 0.f, 0.f ) );
+	return Quat( axis, ACosDegrees( dot ) ).GetNormalized();
+}
+}
 
 SkeletalMesh::SkeletalMesh()
 {
@@ -271,24 +338,97 @@ void SkeletalMesh::UpdateJoints( std::vector<Mat44>& globalTransforms, Animation
 	}
 }
 
-void SkeletalMesh::ApplyFootIK( std::vector<Mat44>& globalTransforms, FootIKConfig const& config, Vec3 const& target )
+void SkeletalMesh::ApplyFootIK( std::vector<Mat44>& globalTransforms, FootIKConfig const& config, Vec3 const& target, Vec3 const& groundNormal, float ikWeight )
 {
+	ikWeight = ClampZeroToOne( ikWeight );
+	if (ikWeight <= FOOT_IK_EPSILON)
+	{
+		return;
+	}
+
 	int thighIdx = GetJointIndexByName( config.thighJointName );
 	int kneeIdx = GetJointIndexByName( config.kneeJointName );
 	int footIdx = GetJointIndexByName( config.footJointName );
+	if (thighIdx < 0 || kneeIdx < 0 || footIdx < 0)
+	{
+		return;
+	}
+	if (thighIdx >= (int)globalTransforms.size() || kneeIdx >= (int)globalTransforms.size() || footIdx >= (int)globalTransforms.size())
+	{
+		return;
+	}
+	if (thighIdx >= (int)m_skeleton.m_joints.size() || kneeIdx >= (int)m_skeleton.m_joints.size() || footIdx >= (int)m_skeleton.m_joints.size())
+	{
+		return;
+	}
+	if (m_skeleton.m_joints[thighIdx].m_name != config.thighJointName ||
+		m_skeleton.m_joints[kneeIdx].m_name != config.kneeJointName ||
+		m_skeleton.m_joints[footIdx].m_name != config.footJointName)
+	{
+		return;
+	}
 
-	Vec3 thighPos = globalTransforms[thighIdx].GetTranslation3D();
-	Vec3 kneePos = globalTransforms[kneeIdx].GetTranslation3D();
-	Vec3 footPos = globalTransforms[footIdx].GetTranslation3D();
+	TwoBoneIKInput input;
+	input.rootPos = globalTransforms[thighIdx].GetTranslation3D();
+	input.midPos = globalTransforms[kneeIdx].GetTranslation3D();
+	input.endPos = globalTransforms[footIdx].GetTranslation3D();
+	input.targetPos = target;
+	input.poleVector = input.midPos;
+	input.rootTransform = globalTransforms[thighIdx];
+	input.midTransform = globalTransforms[kneeIdx];
+	input.endTransform = globalTransforms[footIdx];
 
-	Mat44 newThigh = globalTransforms[thighIdx];
-	Mat44 newKnee = globalTransforms[kneeIdx];
-	Mat44 newFoot = globalTransforms[footIdx];
-	IKSolver::SolveTwoBoneIK( thighPos, kneePos, footPos, target, newThigh, newKnee, newFoot );
+	Mat44 originalFootTransform = input.endTransform;
+	Vec3 originalFootPos = input.endPos;
+	TwoBoneIKResult output;
+	if (!IKSolver::SolveTwoBoneIK( input, output ))
+	{
+		return;
+	}
 
-	globalTransforms[thighIdx] = newThigh;
-	globalTransforms[kneeIdx] = newKnee;
-	globalTransforms[footIdx] = newFoot;
+	Quat originalFootRotation = GetRotationOnlyQuat( originalFootTransform );
+	Vec3 currentFootForward = GetSafeNormalized( originalFootTransform.GetIBasis3D(), Vec3( 1.f, 0.f, 0.f ) );
+	Vec3 desiredFootUp = GetSafeNormalized( groundNormal, Vec3::UP );
+	Quat slopeRotation = GetFromToRotation( Vec3::UP, desiredFootUp, currentFootForward );
+	Quat solvedFootRotation = (slopeRotation * originalFootRotation).GetNormalized();
+	output.endWorldTransform = Mat44( output.solvedEndPos, solvedFootRotation, originalFootTransform.GetScale3D() );
+
+	globalTransforms[thighIdx] = Mat44::Interpolate( input.rootTransform, output.rootWorldTransform, ikWeight );
+	globalTransforms[kneeIdx] = Mat44::Interpolate( input.midTransform, output.midWorldTransform, ikWeight );
+	globalTransforms[footIdx] = Mat44::Interpolate( input.endTransform, output.endWorldTransform, ikWeight );
+
+	Vec3 newFootPos = globalTransforms[footIdx].GetTranslation3D();
+	Quat blendedFootRotation = GetRotationOnlyQuat( globalTransforms[footIdx] );
+	Quat footRotationDelta = (blendedFootRotation * originalFootRotation.GetInversed()).GetNormalized();
+	bool hasRotationChange = fabsf( fabsf( footRotationDelta.DotProduct( Quat::IDENTITY ) ) - 1.f ) > FOOT_IK_EPSILON;
+	if (newFootPos != originalFootPos || hasRotationChange)
+	{
+		std::vector<int> jointsToMove = m_skeleton.m_joints[footIdx].m_childrenIndexes;
+		while (!jointsToMove.empty())
+		{
+			int jointIdx = jointsToMove.back();
+			jointsToMove.pop_back();
+
+			if (jointIdx < 0 || jointIdx >= (int)globalTransforms.size() || jointIdx >= (int)m_skeleton.m_joints.size())
+			{
+				continue;
+			}
+
+			Mat44 childTransform = globalTransforms[jointIdx];
+			Vec3 oldChildPos = childTransform.GetTranslation3D();
+			Vec3 childOffset = oldChildPos - originalFootPos;
+			Vec3 rotatedOffset = footRotationDelta.Rotate( childOffset );
+			Vec3 newChildPos = newFootPos + rotatedOffset;
+
+			Quat childRotation = GetRotationOnlyQuat( childTransform );
+			Quat newChildRotation = (footRotationDelta * childRotation).GetNormalized();
+			globalTransforms[jointIdx] = Mat44( newChildPos, newChildRotation, childTransform.GetScale3D() );
+			for (int childIdx : m_skeleton.m_joints[jointIdx].m_childrenIndexes)
+			{
+				jointsToMove.push_back( childIdx );
+			}
+		}
+	}
 }
 
 void SkeletalMesh::ExportToXML( std::string const& filePath ) const

@@ -18,6 +18,7 @@
 #include "Engine/Model/ModelUtility.hpp"
 #include "Engine/General/SkeletalMeshComponent.hpp"
 #include "Engine/Animation/IKSolver.hpp"
+#include "Engine/Math/MathUtils.hpp"
 
 Character::Character()
 	: Actor()
@@ -170,25 +171,82 @@ void Character::Update( float deltaSeconds )
 		GetSkeletalMesh()->Update();
 		GetSkeletalMesh()->UpdateJoints( GetSkeletalMeshComponent()->GetSkeletonGlobalTransform(), m_animController->GetStateMachine() );
 
-		for (int i = 0; i < GetSkeletalMesh()->m_skeleton.m_joints.size(); i++)
+// 		for (int i = 0; i < GetSkeletalMesh()->m_skeleton.m_joints.size(); i++)
+// 		{
+// 			Mat44 globalTransform = GetSkeletalMesh()->m_skeleton.m_joints[i].m_globalBindposeInverse.GetInverse();
+// 			static const Mat44 XRotation90 = Mat44::CreateXRotationDegrees( 90.f );
+// 			static const Mat44 ZRotation90 = Mat44::CreateZRotationDegrees( 90.f );
+// 			globalTransform = XRotation90 * globalTransform;
+// 			globalTransform = ZRotation90 * globalTransform;
+// 			GetSkeletalMeshComponent()->GetSkeletonGlobalTransform()[i] = globalTransform;
+// 		}
+// 
+		if (m_isUsingIK || m_name == "Paladin")
 		{
-			Mat44 globalTransform = GetSkeletalMesh()->m_skeleton.m_joints[i].m_globalBindposeInverse.GetInverse();
-			static const Mat44 XRotation90 = Mat44::CreateXRotationDegrees( 90.f );
-			static const Mat44 ZRotation90 = Mat44::CreateZRotationDegrees( 90.f );
-			globalTransform = XRotation90 * globalTransform;
-			globalTransform = ZRotation90 * globalTransform;
-			GetSkeletalMeshComponent()->GetSkeletonGlobalTransform()[i] = globalTransform;
-		}
+			Skeleton const& skeleton = GetSkeletalMesh()->GetSkeleton();
+			std::vector<Mat44>& jointTransforms = GetSkeletalMeshComponent()->GetSkeletonGlobalTransform();
+			Mat44 skeletonToWorld = GetSkeletalMeshComponent()->GetWorldTransform();
+			Mat44 worldToSkeleton = skeletonToWorld.GetInverse();
 
-		if (m_name == "Paladin")
-		{
-			FootIKConfig a;
-			a.footJointName = "mixamorig:LeftToeBase";
-			a.kneeJointName = "mixamorig:LeftFoot";
-			a.thighJointName = "mixamorig:LeftLeg";
-			Vec3 pos = GetSkeletalMeshComponent()->GetSkeletonGlobalTransform()[GetSkeletalMesh()->GetJointIndexByName( a.footJointName )].GetTranslation3D();
-			RaycastResult3D result = GetAboveGroundHeight( pos );
-			GetSkeletalMesh()->ApplyFootIK( GetSkeletalMeshComponent()->GetSkeletonGlobalTransform(), a, result.m_impactPos );
+			auto isJointValid = [&]( std::string const& jointName, int& outJointIdx )
+			{
+				outJointIdx = GetSkeletalMesh()->GetJointIndexByName( jointName );
+				return outJointIdx >= 0 &&
+					outJointIdx < (int)skeleton.m_joints.size() &&
+					outJointIdx < (int)jointTransforms.size() &&
+					skeleton.m_joints[outJointIdx].m_name == jointName;
+			};
+
+			auto applyLegIK = [&]( FootIKConfig const& config, std::string const& toeJointName, float& outGroundHeight )
+			{
+				int footJointIdx = -1;
+				int toeJointIdx = -1;
+				if (!isJointValid( config.footJointName, footJointIdx ) || !isJointValid( toeJointName, toeJointIdx ))
+				{
+					return;
+				}
+
+				Vec3 footPos = jointTransforms[footJointIdx].GetTranslation3D();
+				Vec3 toePos = jointTransforms[toeJointIdx].GetTranslation3D();
+				Vec3 footWorldPos = skeletonToWorld.TransformPosition3D( footPos );
+				Vec3 toeWorldPos = skeletonToWorld.TransformPosition3D( toePos );
+
+				RaycastResult3D result = GetAboveGroundHeight( toeWorldPos + Vec3::UP * 2.f );
+				if (!result.m_didImpact)
+				{
+					return;
+				}
+
+				outGroundHeight = toeWorldPos.z - result.m_impactPos.z;
+				Vec3 targetFootWorldPos = footWorldPos + (result.m_impactPos - toeWorldPos);
+				float correctionDistance = (targetFootWorldPos - footWorldPos).GetLength();
+				Vec3 groundWorldNormal = result.m_impactNormal.GetNormalized();
+
+				float heightWeight = 1.f - ClampZeroToOne( (outGroundHeight - 0.05f) / (0.35f - 0.05f) );
+				float slopeDot = Clamp( DotProduct3D( groundWorldNormal, Vec3::UP ), -1.f, 1.f );
+				float slopeWeight = ClampZeroToOne( (slopeDot - CosDegrees( 50.f )) / (CosDegrees( 35.f ) - CosDegrees( 50.f )) );
+				float correctionWeight = 1.f - ClampZeroToOne( (correctionDistance - 0.6f) / (1.2f - 0.6f) );
+				float ikWeight = heightWeight * slopeWeight * correctionWeight;
+
+				Vec3 targetFootPos = worldToSkeleton.TransformPosition3D( targetFootWorldPos );
+				Vec3 groundNormal = worldToSkeleton.TransformVectorQuantity3D( groundWorldNormal ).GetNormalized();
+				GetSkeletalMesh()->ApplyFootIK( jointTransforms, config, targetFootPos, groundNormal, ikWeight );
+			};
+
+			m_leftFootGroundHeight = 0.f;
+			m_rightFootGroundHeight = 0.f;
+
+			FootIKConfig leftLegIK;
+			leftLegIK.thighJointName = "mixamorig:LeftUpLeg";
+			leftLegIK.kneeJointName = "mixamorig:LeftLeg";
+			leftLegIK.footJointName = "mixamorig:LeftFoot";
+			applyLegIK( leftLegIK, "mixamorig:LeftToeBase", m_leftFootGroundHeight );
+
+			FootIKConfig rightLegIK;
+			rightLegIK.thighJointName = "mixamorig:RightUpLeg";
+			rightLegIK.kneeJointName = "mixamorig:RightLeg";
+			rightLegIK.footJointName = "mixamorig:RightFoot";
+			applyLegIK( rightLegIK, "mixamorig:RightToeBase", m_rightFootGroundHeight );
 		}
 	}
 
